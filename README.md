@@ -1,2 +1,3 @@
-# chiller-model
-Optimal sequence scheduling for data center cooling efficiency
+# Optimal sequence scheduling for data center cooling efficiency
+
+The objective of this project is to develop a methodology for scheduling the operation of multiple chillers in a data center to optimize cooling performance, energy efficiency, and system longevity. Specifically, the project will formulate and implement an optimization strategy that leverages linear transfer functions to represent chiller behavior in response to varying operational and environmental conditions. By accounting for factors such as chiller layout, ambient temperature, humidity, wind direction and speed, and equitable distribution of operation hours, the solution should maintain cooling capacity based on ambient and forecasted weather conditions, minimize energy consumption, and ensure balanced usage across all chillers. The desired outcome is a flexible, scalable scheduling approach that can be adapted to diverse data center configurations and load scenarios.
