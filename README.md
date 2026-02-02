@@ -28,12 +28,6 @@ This package models these thermal interference effects using physics-based Gauss
 
 ## Installation
 
-### From PyPI (when available)
-
-```bash
-pip install chiller-sim
-```
-
 ### From Source
 
 ```bash
