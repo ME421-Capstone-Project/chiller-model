@@ -51,9 +51,9 @@ intersphinx_mapping = {
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
+# The master toctree document (root of the documentation)
+root_doc = "index"
+
 # -- Options for HTML output -------------------------------------------------
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
-
-# Create static directory if it doesn't exist
-os.makedirs("_static", exist_ok=True)

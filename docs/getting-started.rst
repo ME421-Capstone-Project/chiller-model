@@ -7,13 +7,7 @@ This guide will help you get up and running with the chiller simulation package.
 Installation
 ------------
 
-Install the package using pip:
-
-.. code-block:: bash
-
-   pip install chiller-sim
-
-Or install from source:
+Install from source:
 
 .. code-block:: bash
 
