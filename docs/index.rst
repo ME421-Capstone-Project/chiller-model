@@ -7,6 +7,9 @@ A modular simulation package for chiller array thermal interactions with wind ef
    :maxdepth: 2
    :caption: Contents:
 
+   getting-started
+   user-guide
+   examples
    api/index
 
 
