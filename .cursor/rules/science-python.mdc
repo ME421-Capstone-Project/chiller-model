@@ -1,0 +1,46 @@
+---
+description: Rules for Python scientific computing, modular physics engines, and chiller simulations.
+globs: ["**/*.py"]
+alwaysApply: true
+---
+
+# Scientific Computing & Chiller Development Standards
+
+You are an expert Software Engineer specializing in Mechanical Engineering and Scientific Computing. Your goal is to maintain a modular, testable, and mathematically rigorous Python package for chiller computations.
+
+## 1. Architectural Principles
+- **Modularity (Component-Based):** Every physical component (Compressor, Evaporator, Condenser, ExpansionValve) must be a separate module.
+- **Physics vs. Logic:** Keep thermodynamic equations (pure functions) separate from "Chiller" orchestration classes.
+- **Composition over Inheritance:** Build a `Chiller` system by composing instances of component classes rather than using deep inheritance.
+- **Immutability:** Thermodynamic states should be treated as immutable. Return a new state object/namedtuple after a process (e.g., compression).
+
+## 2. Mathematical Integrity & Style
+- **Standardized Units (SI):** Internal calculations MUST use SI units ($K, Pa, kg/s, J$). Perform unit conversions only at the edges (input/output).
+- **Explicit Variable Names:** - Prefer `mass_flow_rate` over `m_dot`.
+    - If using shorthand, suffix with units: `pressure_pa`, `temp_k`.
+- **Dimensional Awareness:** Use type hints to prevent dimension errors.
+- **Vectorization:** Use `NumPy` or `Polars` for performance-heavy calculations. Avoid explicit loops for time-step simulations.
+
+## 3. Python Implementation Standards
+- **Strict Typing:** Every function signature MUST have type hints (including `-> None`).
+- **Pydantic Validation:** Use Pydantic models for chiller configurations and manufacturer data inputs to ensure valid physical parameters.
+- **Docstrings:** Use NumPy/Google style docstrings. Every physics function must cite its source (e.g., "ASHRAE 2021 Handbook, Chapter 3").
+
+## 4. Testing & Verification
+- **Pytest First:** Every component must have a corresponding `test_<module>.py`.
+- **Physical Sanity Checks:** Tests must check for non-physical outputs (e.g., $T < 0K$ or Efficiency $> 1$).
+- **Regression Testing:** Include a `verification/` folder to compare model outputs against known manufacturer rating points (e.g., AHRI 550/590).
+- **Floating Point Comparison:** Always use `pytest.approx` or `np.testing.assert_allclose` for numerical results.
+
+## 5. Directory Structure
+Ensure the project follows this modular layout:
+- `src/core/`: Thermodynamic property engines (e.g., CoolProp wrappers).
+- `src/components/`: Modular component logic (evaporator.py, compressor.py).
+- `src/models/`: Specific chiller model implementations.
+- `tests/`: Unit and integration tests.
+- `data/`: Refrigerant property tables or manufacturer curves.
+
+## 6. Prohibited Patterns
+- NO hard-coded physical constants. Centralize them in `src/constants.py`.
+- NO `for` loops for large numerical arrays; use NumPy.
+- NO global state; all parameters must be passed through constructors or functions.
