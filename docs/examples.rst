@@ -44,6 +44,22 @@ Visualize how one chiller's exhaust affects the entire array:
    ax.legend()
    plt.show()
 
+**Expected output:**
+
+The plot shows a 5×5 grid of chillers colored by thermal impact from the center 
+source (marked with a blue star). Chillers downwind of the source appear darker 
+(higher thermal impact), while upwind chillers remain unaffected (lighter color).
+
+.. code-block:: text
+
+   Source chiller index: 12
+   Max thermal impact on neighbors: 0.2010
+   Mean thermal impact (non-zero): 0.0512
+   Number of affected chillers: 7
+
+The thermal plume affects 7 out of 24 neighboring chillers, with the maximum
+impact (0.20) on the nearest downwind unit.
+
 
 Example 2: The Density Penalty
 ------------------------------
@@ -82,11 +98,16 @@ Compare COP of an isolated chiller vs. one surrounded by active neighbors:
    print(f"Crowded Chiller COP: {cop_full:.2f}")
    print(f"Efficiency Loss: {efficiency_loss:.1f}%")
 
-Expected output::
+**Expected output:**
+
+.. code-block:: text
 
    Isolated Chiller COP: 4.00
    Crowded Chiller COP: 2.80
    Efficiency Loss: 30.1%
+
+This demonstrates that a chiller in the center of a dense array experiences
+a **30% reduction in COP** due to thermal interference from surrounding units.
 
 
 Example 3: "Less is More" Optimization
@@ -125,6 +146,17 @@ efficient than running all of them:
    savings = (result_all.total_work_kw - result_opt.total_work_kw) / \
              result_all.total_work_kw * 100
    print(f"Energy savings: {savings:.2f}%")
+
+**Expected output:**
+
+.. code-block:: text
+
+   25 chillers: 33.43 kW
+   15 optimized: 28.67 kW
+   Energy savings: 14.24%
+
+By running only 15 optimally-selected chillers instead of all 25, the system
+achieves **14% energy savings** while still meeting the same cooling load.
 
 
 Example 4: Wind Direction Sensitivity
@@ -165,6 +197,18 @@ Analyze how different wind directions affect system efficiency:
 
    print(f"Best wind angle: {angles[best_idx]:.0f}° ({results[best_idx]:.2f} kW)")
    print(f"Worst wind angle: {angles[worst_idx]:.0f}° ({results[worst_idx]:.2f} kW)")
+
+**Expected output:**
+
+.. code-block:: text
+
+   Best wind angle: 40° (33.40 kW)
+   Worst wind angle: 90° (33.53 kW)
+
+Wind direction has a modest effect on this symmetric array. The worst case (90°, 
+directly aligned with the grid) causes slightly more thermal interference than
+the best case (40°, diagonal to the grid). For asymmetric arrays or different
+spacings, this effect can be more pronounced.
 
 
 Example 5: Comparing Interaction Models
@@ -214,6 +258,22 @@ Compare different thermal interaction models on the same array:
        result = env.compute_performance(active, load)
        print(f"{name}: {result.total_work_kw:.2f} kW (Mean COP: {np.mean(result.cop_array):.2f})")
 
+**Expected output:**
+
+.. code-block:: text
+
+   Gaussian (σ=1.2): 33.43 kW (Mean COP: 3.08)
+   Gaussian (σ=2.0): 36.19 kW (Mean COP: 2.88)
+   Simple Distance: 38.86 kW (Mean COP: 2.67)
+
+The dispersion coefficient (σ) significantly affects predictions:
+
+- **Lower σ (1.2)**: Narrow plumes, less overlap, higher efficiency
+- **Higher σ (2.0)**: Wider plumes, more interference, lower efficiency
+- **Simple model**: Different physics, most pessimistic predictions
+
+Choose the model that best matches your empirical data or CFD simulations.
+
 
 Example 6: Large-Scale Array Analysis
 -------------------------------------
@@ -248,6 +308,26 @@ Simulate a larger data center with 100 chillers:
    min_work = min(results, key=lambda x: x[1])
    print(f"\nOptimal configuration: {min_work[0]} chillers at {min_work[1]:.2f} kW")
 
+**Expected output:**
+
+.. code-block:: text
+
+   20 chillers: 127.10 kW
+   30 chillers: 131.08 kW
+   40 chillers: 135.29 kW
+   50 chillers: 139.90 kW
+   60 chillers: 144.79 kW
+   70 chillers: 149.87 kW
+   80 chillers: 155.19 kW
+   90 chillers: 160.81 kW
+   100 chillers: 166.80 kW
+
+   Optimal configuration: 20 chillers at 127.10 kW
+
+For this 100-chiller array, using only 20 optimally-selected chillers saves
+**24% energy** compared to running all 100 units. The "less is more" principle
+is even more dramatic at larger scales.
+
 
 Jupyter Notebook Demo
 ---------------------
@@ -255,6 +335,13 @@ Jupyter Notebook Demo
 For an interactive experience with visualizations, see the ``demo.ipynb``
 notebook included in the repository. It provides:
 
-- Side-by-side comparisons with plots
-- Interactive thermal plume visualization
-- Step-by-step optimization walkthrough
+- Side-by-side comparison plots showing standard vs. optimized activation
+- Interactive thermal plume visualization with color-coded COP values
+- Step-by-step optimization walkthrough with real-time results
+- Wind direction sensitivity analysis with polar plots
+
+To run the demo:
+
+.. code-block:: bash
+
+   jupyter notebook demo.ipynb
