@@ -1,0 +1,90 @@
+# Repository Cleanliness & Documentation Standards
+
+## Core Principle
+Keep the root directory clean and focused. Extensive explanations, implementation notes, and temporary documentation belong in commit messages or pull requests, NOT as standalone files in the repository.
+
+## Prohibited: Root-Level Clutter Files
+**NEVER** create these types of files in the root directory:
+- `SUMMARY.txt`, `NOTES.txt`, `CHANGES.txt`
+- `UPDATES_LOG.md`, `CHANGELOG_TEMP.md`, `FIXES.md`
+- `GUIDE.md`, `REPORT.md`, `EXPLANATION.md` (unless explicitly part of official docs)
+- `INDEX.md`, `TODO.md`, `SCRATCH.md`
+- Any `*_FIXES.md`, `*_NOTES.md`, `*_SUMMARY.md` pattern files
+
+## Allowed Root Files
+Only these documentation files should exist in the root:
+- `README.md` - Primary project documentation
+- `LICENSE` - License file
+- `CONTRIBUTING.md` - Contribution guidelines (if needed)
+- `.gitignore`, `.cursorrules`, etc. - Configuration files
+
+## Where to Put Information Instead
+
+### 1. Commit Messages
+Use detailed commit messages for implementation notes:
+```
+git commit -m "feat: Add Gaussian plume interaction model
+
+- Implemented thermal plume propagation using Gaussian dispersion
+- Added wind velocity and direction effects on chiller arrays
+- Fixed COP degradation calculation for ambient temperature rise
+- Validated against ASHRAE thermal interaction guidelines
+
+Addresses efficiency losses in multi-chiller deployments.
+Performance impact: ~15% COP improvement in optimal spacing.
+"
+```
+
+### 2. Pull Request Descriptions
+For significant changes, create a PR with structured information:
+```markdown
+## Summary
+Brief description of changes
+
+## Technical Details
+- Key implementation decisions
+- Algorithm choices and rationale
+- Performance considerations
+
+## Testing
+- Unit tests added
+- Integration test results
+- Edge cases covered
+
+## Related Issues
+Fixes #123
+```
+
+### 3. Code Documentation
+Put detailed explanations where they belong:
+- **Docstrings**: For function/class behavior and mathematical formulations
+- **Inline comments**: For complex algorithm steps
+- **`docs/` folder**: For formal documentation (Sphinx, MkDocs, etc.)
+
+### 4. Scripts Folder
+All executable scripts, examples, and utilities must go in `scripts/`:
+```
+scripts/
+  ├── examples_visualization.py
+  ├── QUICK_START.py
+  ├── benchmark_performance.py
+  └── generate_test_data.py
+```
+
+## When the User Asks for Notes/Summaries
+If a user requests you to "document" or "summarize" your work:
+1. **First response**: Offer to prepare a commit message or PR description
+2. **Ask**: "Would you like me to create a detailed commit message with this information?"
+3. **Never default** to creating a standalone `.md` or `.txt` file
+
+## Exception: Official Documentation
+If creating formal documentation for the `docs/` folder (e.g., Sphinx RST/Markdown), that is appropriate. But always place it in the docs hierarchy, never the root.
+
+## Enforcement
+Before creating ANY new `.md`, `.txt`, or documentation file, check:
+1. Is this `README.md` or another allowed file? → Proceed
+2. Is this a temporary explanation/notes file? → Use commit message instead
+3. Is this official documentation? → Place in `docs/` folder
+4. Is this a script/example? → Place in `scripts/` folder
+
+**If unsure, ask the user**: "Should this information go in a commit message, or would you prefer a different approach?"
