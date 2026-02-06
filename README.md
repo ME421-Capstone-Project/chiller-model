@@ -116,11 +116,50 @@ chiller-model/
 └── pyproject.toml
 ```
 
+## Architecture
+
+The package uses a modular, composition-based architecture with clear separation of concerns:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                   Simulation Layer                              │
+│  ┌──────────────────────┐    ┌───────────────────────┐         │
+│  │ SimulationEnvironment│◄───│     Optimizer         │         │
+│  │ (orchestrates)       │    │  (optimization)       │         │
+│  └─────────┬────────────┘    └───────────────────────┘         │
+└────────────┼─────────────────────────────────────────────────────┘
+             │ composes ▼
+┌────────────┴─────────────────────────────────────────────────────┐
+│                   Component Layer                                │
+│  ┌────────────┐  ┌─────────────┐  ┌──────────────────┐          │
+│  │ChillerArray│  │ WindVector  │  │ InteractionModel │          │
+│  │(positions) │  │(atmosphere) │  │  (pluggable)     │          │
+│  └────────────┘  └─────────────┘  └────────┬─────────┘          │
+└────────────────────────────────────────────┼────────────────────┘
+                                              │ implements ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                   Model Layer                                    │
+│  ┌──────────────────────┐    ┌───────────────────────┐          │
+│  │BaseInteractionModel  │◄───┤ GaussianPlumeModel   │          │
+│  │  (abstract)          │    │  (physics)           │          │
+│  └──────────────────────┘    └───────────────────────┘          │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Key Design Principles:**
+- **Composition over Inheritance**: Build systems by composing component instances
+- **Immutability**: Thermodynamic states use frozen dataclasses and NamedTuples
+- **Vectorization**: All array operations use NumPy (no explicit for-loops)
+- **Type Safety**: Comprehensive type hints with Pydantic validation
+
+For detailed architecture diagrams and data flow, see [Architecture Documentation](docs/architecture.rst).
+
 ## Documentation
 
 Full documentation is available at [chiller-model.readthedocs.io](https://chiller-model.readthedocs.io).
 
 - [Getting Started](https://chiller-model.readthedocs.io/getting-started.html)
+- [Architecture & Module Flow](https://chiller-model.readthedocs.io/architecture.html) - Visual system architecture
 - [User Guide](https://chiller-model.readthedocs.io/user-guide.html)
 - [Examples](https://chiller-model.readthedocs.io/examples.html)
 - [API Reference](https://chiller-model.readthedocs.io/api/index.html)
