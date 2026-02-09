@@ -28,11 +28,11 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numpy.typing import NDArray
 
-from src.core.constants import DEFAULT_DISPERSION_COEFF
-from src.models.base_interaction import BaseInteractionModel
+from core.constants import DEFAULT_DISPERSION_COEFF
+from models.base_interaction import BaseInteractionModel
 
 if TYPE_CHECKING:
-    from src.components.wind import WindVector
+    from components.wind import WindVector
 
 
 class GaussianPlumeModel(BaseInteractionModel):
@@ -82,7 +82,7 @@ class GaussianPlumeModel(BaseInteractionModel):
 
     Examples
     --------
-    >>> from src.components import WindVector, ChillerArray
+    >>> from components import WindVector, ChillerArray
     >>> model = GaussianPlumeModel(dispersion_coeff=1.2)
     >>> wind = WindVector(velocity_m_per_s=(5.0, 0.0), ambient_temp_k=298.15)
     >>> array = ChillerArray.create_grid(rows=4, cols=4, spacing_m=10.0)

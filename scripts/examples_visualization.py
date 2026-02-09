@@ -14,9 +14,9 @@ from matplotlib.patches import FancyArrowPatch
 from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.patheffects as fx
 
-from src.components import WindVector, ChillerArray
-from src.models import GaussianPlumeModel
-from src.simulation import SimulationEnvironment, Optimizer
+from components import WindVector, ChillerArray
+from models import GaussianPlumeModel
+from simulation import SimulationEnvironment, Optimizer
 
 
 # ============================================================================
