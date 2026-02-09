@@ -8,6 +8,8 @@ A modular simulation package for chiller array thermal interactions with wind ef
    :caption: Contents:
 
    getting-started
+   architecture
+   visual-guide
    user-guide
    examples
    api/index
