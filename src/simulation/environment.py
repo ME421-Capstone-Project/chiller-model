@@ -23,9 +23,9 @@ from typing import NamedTuple
 import numpy as np
 from numpy.typing import NDArray
 
-from src.components.chiller_array import ChillerArray
-from src.components.wind import WindVector
-from src.models.base_interaction import BaseInteractionModel
+from components.chiller_array import ChillerArray
+from components.wind import WindVector
+from models.base_interaction import BaseInteractionModel
 
 
 class PerformanceResult(NamedTuple):
@@ -111,8 +111,8 @@ class SimulationEnvironment:
 
     Examples
     --------
-    >>> from src.components import ChillerArray, WindVector
-    >>> from src.models import GaussianPlumeModel
+    >>> from components import ChillerArray, WindVector
+    >>> from models import GaussianPlumeModel
     >>>
     >>> array = ChillerArray.create_grid(rows=4, cols=4, spacing_m=10.0)
     >>> wind = WindVector(velocity_m_per_s=(5.0, 0.0), ambient_temp_k=298.15)

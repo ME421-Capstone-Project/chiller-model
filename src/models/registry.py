@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Callable, TypeVar
 
-from src.models.base_interaction import BaseInteractionModel
+from models.base_interaction import BaseInteractionModel
 
 T = TypeVar("T", bound=BaseInteractionModel)
 
@@ -103,7 +103,7 @@ def clear_registry() -> None:
 # Import here to avoid circular imports
 def _register_builtin_models() -> None:
     """Register the built-in models."""
-    from src.models.gaussian_plume import GaussianPlumeModel
+    from models.gaussian_plume import GaussianPlumeModel
 
     if "gaussian_plume" not in _MODEL_REGISTRY:
         _MODEL_REGISTRY["gaussian_plume"] = GaussianPlumeModel

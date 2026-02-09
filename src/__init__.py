@@ -13,9 +13,9 @@ simulation : Simulation orchestration and optimization
 
 Example
 -------
->>> from src.components import WindVector, ChillerArray
->>> from src.models import GaussianPlumeModel
->>> from src.simulation import SimulationEnvironment
+>>> from components import WindVector, ChillerArray
+>>> from models import GaussianPlumeModel
+>>> from simulation import SimulationEnvironment
 >>>
 >>> wind = WindVector(velocity_m_per_s=(5.0, 0.0), ambient_temp_k=298.15)
 >>> array = ChillerArray.create_grid(rows=3, cols=4, spacing_m=10.0)

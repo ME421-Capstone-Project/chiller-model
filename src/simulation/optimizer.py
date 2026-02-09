@@ -24,7 +24,7 @@ from typing import NamedTuple
 import numpy as np
 from numpy.typing import NDArray
 
-from src.simulation.environment import PerformanceResult, SimulationEnvironment
+from simulation.environment import PerformanceResult, SimulationEnvironment
 
 
 class OptimizationResult(NamedTuple):

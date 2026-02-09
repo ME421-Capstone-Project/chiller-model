@@ -16,7 +16,7 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import NDArray
 
-from src.core.constants import DEFAULT_ALPHA, DEFAULT_BASE_COP
+from core.constants import DEFAULT_ALPHA, DEFAULT_BASE_COP
 
 
 @dataclass
