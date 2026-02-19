@@ -16,7 +16,13 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import NDArray
 
-from core.constants import DEFAULT_ALPHA, DEFAULT_BASE_COP
+from core.constants import (
+    AGE_MAX_YEARS,
+    AGE_MIN_YEARS,
+    DEFAULT_ALPHA,
+    DEFAULT_BASE_COP,
+    compute_cop_age_factors_vectorized,
+)
 
 
 @dataclass
@@ -57,9 +63,10 @@ class ChillerArray:
     positions_m: NDArray[np.float64]
     base_cop: float = DEFAULT_BASE_COP
     alpha: float = DEFAULT_ALPHA
+    ages_years: NDArray[np.float64] | None = None
 
     def __post_init__(self) -> None:
-        """Validate array parameters."""
+        """Validate array parameters and initialize ages if not provided."""
         if self.positions_m.ndim != 2 or self.positions_m.shape[1] != 2:
             raise ValueError(
                 f"positions_m must have shape (N, 2), got {self.positions_m.shape}"
@@ -80,6 +87,33 @@ class ChillerArray:
                 "positions_m",
                 self.positions_m.astype(np.float64),
             )
+
+        # Initialize ages: random uniform [AGE_MIN, AGE_MAX] if not provided
+        n = len(self.positions_m)
+        if self.ages_years is None:
+            rng = np.random.default_rng()
+            ages = rng.uniform(AGE_MIN_YEARS, AGE_MAX_YEARS, size=n)
+            object.__setattr__(self, "ages_years", ages.astype(np.float64))
+        else:
+            ages = np.asarray(self.ages_years, dtype=np.float64)
+            if ages.shape != (n,):
+                raise ValueError(
+                    f"ages_years must have shape ({n},), got {ages.shape}"
+                )
+            if np.any(ages < 0):
+                raise ValueError("ages_years must be non-negative")
+            object.__setattr__(self, "ages_years", ages)
+
+    @property
+    def cop_age_factors(self) -> NDArray[np.float64]:
+        """COP multipliers from age degradation for each chiller.
+
+        Returns
+        -------
+        NDArray[np.float64]
+            Age-based COP multipliers, shape (N,). Multiply base_cop element-wise.
+        """
+        return compute_cop_age_factors_vectorized(self.ages_years)
 
     @property
     def num_chillers(self) -> int:
@@ -134,6 +168,8 @@ class ChillerArray:
         base_cop: float = DEFAULT_BASE_COP,
         alpha: float = DEFAULT_ALPHA,
         origin_m: tuple[float, float] = (0.0, 0.0),
+        ages_years: NDArray[np.float64] | None = None,
+        seed: int | None = None,
     ) -> ChillerArray:
         """Create a rectangular grid of chillers.
 
@@ -151,6 +187,11 @@ class ChillerArray:
             Temperature sensitivity (default from constants).
         origin_m : tuple[float, float], optional
             Bottom-left corner of the grid (default (0, 0)).
+        ages_years : NDArray[np.float64] | None, optional
+            Chiller ages in years, shape (rows*cols,). If None, random uniform
+            [AGE_MIN_YEARS, AGE_MAX_YEARS] using seed.
+        seed : int | None, optional
+            Random seed for age assignment when ages_years is None.
 
         Returns
         -------
@@ -175,10 +216,18 @@ class ChillerArray:
         xx, yy = np.meshgrid(x, y)
         positions = np.column_stack([xx.ravel(), yy.ravel()])
 
+        if ages_years is None:
+            rng = np.random.default_rng(seed)
+            n = rows * cols
+            ages_years = rng.uniform(AGE_MIN_YEARS, AGE_MAX_YEARS, size=n).astype(
+                np.float64
+            )
+
         return cls(
             positions_m=positions.astype(np.float64),
             base_cop=base_cop,
             alpha=alpha,
+            ages_years=ages_years,
         )
 
     @classmethod
@@ -189,6 +238,7 @@ class ChillerArray:
         base_cop: float = DEFAULT_BASE_COP,
         alpha: float = DEFAULT_ALPHA,
         seed: int | None = None,
+        ages_years: NDArray[np.float64] | None = None,
     ) -> ChillerArray:
         """Create randomly positioned chillers within an area.
 
@@ -203,7 +253,10 @@ class ChillerArray:
         alpha : float, optional
             Temperature sensitivity.
         seed : int | None, optional
-            Random seed for reproducibility.
+            Random seed for reproducibility of positions (and ages if ages_years None).
+        ages_years : NDArray[np.float64] | None, optional
+            Chiller ages in years, shape (num_chillers,). If None, random uniform
+            [AGE_MIN_YEARS, AGE_MAX_YEARS] using same RNG as positions.
 
         Returns
         -------
@@ -222,10 +275,16 @@ class ChillerArray:
         rng = np.random.default_rng(seed)
         positions = rng.random((num_chillers, 2)) * np.array(area_size_m)
 
+        if ages_years is None:
+            ages_years = rng.uniform(
+                AGE_MIN_YEARS, AGE_MAX_YEARS, size=num_chillers
+            ).astype(np.float64)
+
         return cls(
             positions_m=positions.astype(np.float64),
             base_cop=base_cop,
             alpha=alpha,
+            ages_years=ages_years,
         )
 
     def get_bounding_box(self) -> tuple[float, float, float, float]:

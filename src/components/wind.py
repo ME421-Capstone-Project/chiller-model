@@ -2,7 +2,7 @@
 
 This module defines the immutable WindVector class representing
 atmospheric wind conditions that affect thermal plume dispersion
-between chillers.
+between chillers. Includes helpers for time-varying wind profiles.
 
 Reference
 ---------
@@ -12,7 +12,7 @@ ASHRAE Handbook - Fundamentals, Chapter 24 (Airflow Around Buildings)
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 import numpy as np
 from numpy.typing import NDArray
@@ -177,3 +177,59 @@ class WindVector:
             velocity_m_per_s=(float(vx), float(vy)),
             ambient_temp_k=ambient_temp_k,
         )
+
+
+def sinusoidal_direction_profile(
+    speed_m_per_s: float,
+    angle_center_deg: float,
+    angle_amplitude_deg: float,
+    period_hours: float,
+    ambient_temp_k: float,
+    phase_hours: float = 0.0,
+) -> Callable[[float], WindVector]:
+    """Create wind profile with sinusoidally varying direction.
+
+    Wind speed is constant; direction oscillates around center.
+
+    Parameters
+    ----------
+    speed_m_per_s : float
+        Constant wind speed in m/s.
+    angle_center_deg : float
+        Center direction in degrees (counterclockwise from east).
+    angle_amplitude_deg : float
+        Amplitude of oscillation in degrees.
+    period_hours : float
+        Period of direction cycle in hours.
+    ambient_temp_k : float
+        Ambient temperature in Kelvin.
+    phase_hours : float, optional
+        Phase offset in hours (default 0).
+
+    Returns
+    -------
+    Callable[[float], WindVector]
+        wind_profile(time_hours) -> WindVector
+
+    Examples
+    --------
+    >>> profile = sinusoidal_direction_profile(
+    ...     speed_m_per_s=5.0, angle_center_deg=90, angle_amplitude_deg=30,
+    ...     period_hours=24.0, ambient_temp_k=298.15
+    ... )
+    >>> wind = profile(12.0)
+    """
+    def _profile(time_hours: float) -> WindVector:
+        angle_rad = np.deg2rad(
+            angle_center_deg
+            + angle_amplitude_deg
+            * np.sin(2 * np.pi * (time_hours - phase_hours) / period_hours)
+        )
+        vx = speed_m_per_s * np.cos(angle_rad)
+        vy = speed_m_per_s * np.sin(angle_rad)
+        return WindVector(
+            velocity_m_per_s=(float(vx), float(vy)),
+            ambient_temp_k=ambient_temp_k,
+        )
+
+    return _profile

@@ -55,6 +55,7 @@ class TestAHRIRatingConditions:
 
         A 4x4 grid of 500-ton (1758 kW) chillers with COP of 5.5
         represents a typical high-efficiency centrifugal installation.
+        Uses age=0 (new equipment) for standard rating conditions.
         """
         return ChillerArray.create_grid(
             rows=4,
@@ -62,6 +63,7 @@ class TestAHRIRatingConditions:
             spacing_m=15.0,  # 15m spacing is typical for large installations
             base_cop=5.5,  # IPLV-rated efficiency
             alpha=0.7,
+            ages_years=np.zeros(16, dtype=np.float64),  # New equipment
         )
 
     @pytest.fixture
@@ -163,15 +165,23 @@ class TestAHRIRatingConditions:
         )
         model = GaussianPlumeModel(dispersion_coeff=1.2)
 
-        # Sparse array (25m spacing)
+        # Sparse array (25m spacing), age=0 for fair comparison
         sparse_array = ChillerArray.create_grid(
-            rows=4, cols=4, spacing_m=25.0, base_cop=5.5
+            rows=4,
+            cols=4,
+            spacing_m=25.0,
+            base_cop=5.5,
+            ages_years=np.zeros(16, dtype=np.float64),
         )
         sparse_env = SimulationEnvironment(sparse_array, wind, model)
 
-        # Dense array (10m spacing)
+        # Dense array (10m spacing), age=0 for fair comparison
         dense_array = ChillerArray.create_grid(
-            rows=4, cols=4, spacing_m=10.0, base_cop=5.5
+            rows=4,
+            cols=4,
+            spacing_m=10.0,
+            base_cop=5.5,
+            ages_years=np.zeros(16, dtype=np.float64),
         )
         dense_env = SimulationEnvironment(dense_array, wind, model)
 
@@ -221,6 +231,7 @@ class TestVerificationData:
             cols=4,
             spacing_m=reference_case["spacing_m"],
             base_cop=reference_case["base_cop"],
+            ages_years=np.zeros(16, dtype=np.float64),  # New equipment
         )
         wind = WindVector(
             velocity_m_per_s=(reference_case["wind_speed_m_s"], 0.0),
@@ -262,7 +273,11 @@ class TestPhysicalConsistency:
         Thermodynamic lower bound: Work >= Load / COP_max
         """
         array = ChillerArray.create_grid(
-            rows=4, cols=4, spacing_m=15.0, base_cop=5.0
+            rows=4,
+            cols=4,
+            spacing_m=15.0,
+            base_cop=5.0,
+            ages_years=np.zeros(16, dtype=np.float64),
         )
         wind = WindVector(velocity_m_per_s=(5.0, 0.0), ambient_temp_k=300.0)
         model = GaussianPlumeModel()
@@ -283,7 +298,12 @@ class TestPhysicalConsistency:
         More active chillers = more interference = lower or equal COP
         """
         array = ChillerArray.create_grid(
-            rows=4, cols=4, spacing_m=10.0, base_cop=5.0, alpha=1.0
+            rows=4,
+            cols=4,
+            spacing_m=10.0,
+            base_cop=5.0,
+            alpha=1.0,
+            ages_years=np.zeros(16, dtype=np.float64),
         )
         wind = WindVector(velocity_m_per_s=(5.0, 0.0), ambient_temp_k=300.0)
         model = GaussianPlumeModel(dispersion_coeff=1.0)

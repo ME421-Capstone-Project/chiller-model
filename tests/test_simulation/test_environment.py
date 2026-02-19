@@ -126,8 +126,14 @@ class TestPerformanceCalculation:
         assert result.load_per_unit_kw == 0.0
 
     def test_single_chiller_no_interference(self) -> None:
-        """Single chiller has no thermal interference."""
-        array = ChillerArray.create_grid(rows=1, cols=1, spacing_m=10.0, base_cop=5.0)
+        """Single chiller has no thermal interference (age=0 for full COP)."""
+        array = ChillerArray.create_grid(
+            rows=1,
+            cols=1,
+            spacing_m=10.0,
+            base_cop=5.0,
+            ages_years=np.array([0.0]),  # New chiller: no age degradation
+        )
         wind = WindVector(velocity_m_per_s=(5.0, 0.0), ambient_temp_k=298.15)
         model = GaussianPlumeModel()
         env = SimulationEnvironment(array, wind, model)
@@ -135,10 +141,71 @@ class TestPerformanceCalculation:
         active_mask = np.ones(1, dtype=bool)
         result = env.compute_performance(active_mask, total_load_kw=100.0)
 
-        # No interference = base COP
+        # No interference, age=0: full base COP
         assert result.cop_array[0] == pytest.approx(5.0)
         # Work = load / COP
         assert result.total_work_kw == pytest.approx(20.0)
+
+    def test_age_reduces_cop(self) -> None:
+        """Older chillers should have lower COP (age degradation)."""
+        base_cop = 5.0
+        # Single chiller, age 0: full COP
+        array_new = ChillerArray.create_grid(
+            rows=1,
+            cols=1,
+            spacing_m=10.0,
+            base_cop=base_cop,
+            ages_years=np.array([0.0], dtype=np.float64),
+        )
+        # Single chiller, age 1 year: 80% COP (per constants)
+        array_1yr = ChillerArray.create_grid(
+            rows=1,
+            cols=1,
+            spacing_m=10.0,
+            base_cop=base_cop,
+            ages_years=np.array([1.0], dtype=np.float64),
+        )
+        wind = WindVector(velocity_m_per_s=(5.0, 0.0), ambient_temp_k=298.15)
+        model = GaussianPlumeModel()
+
+        env_new = SimulationEnvironment(array_new, wind, model)
+        env_1yr = SimulationEnvironment(array_1yr, wind, model)
+
+        active_mask = np.ones(1, dtype=bool)
+        result_new = env_new.compute_performance(active_mask, total_load_kw=100.0)
+        result_1yr = env_1yr.compute_performance(active_mask, total_load_kw=100.0)
+
+        # Age 0: COP = base_cop = 5.0; Age 1: COP = 0.8 * base_cop = 4.0
+        assert result_new.cop_array[0] == pytest.approx(base_cop)
+        assert result_1yr.cop_array[0] == pytest.approx(0.8 * base_cop)
+        assert result_1yr.cop_array[0] < result_new.cop_array[0]
+
+    def test_startup_factors_reduce_cop(self) -> None:
+        """Startup factors should reduce effective COP (ramp-up)."""
+        array = ChillerArray.create_grid(
+            rows=1,
+            cols=1,
+            spacing_m=10.0,
+            base_cop=5.0,
+            ages_years=np.array([0.0], dtype=np.float64),
+        )
+        wind = WindVector(velocity_m_per_s=(5.0, 0.0), ambient_temp_k=298.15)
+        model = GaussianPlumeModel()
+        env = SimulationEnvironment(array, wind, model)
+
+        active_mask = np.ones(1, dtype=bool)
+        # No startup: full COP
+        result_full = env.compute_performance(active_mask, total_load_kw=100.0)
+        # Startup factor 0.5: half COP
+        result_half = env.compute_performance(
+            active_mask,
+            total_load_kw=100.0,
+            startup_factors=np.array([0.5], dtype=np.float64),
+        )
+
+        assert result_half.cop_array[0] == pytest.approx(2.5)  # 5 * 0.5
+        assert result_full.cop_array[0] == pytest.approx(5.0)
+        assert result_half.total_work_kw > result_full.total_work_kw
 
 
 class TestEnvironmentFactories:

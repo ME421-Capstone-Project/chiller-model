@@ -169,6 +169,7 @@ class SimulationEnvironment:
         self,
         active_mask: NDArray[np.bool_],
         total_load_kw: float,
+        startup_factors: NDArray[np.float64] | None = None,
     ) -> PerformanceResult:
         """Calculate total energy and individual COPs.
 
@@ -181,6 +182,9 @@ class SimulationEnvironment:
             Boolean array indicating which chillers are ON, shape (N,).
         total_load_kw : float
             Total cooling load to distribute across active chillers.
+        startup_factors : NDArray[np.float64] | None, optional
+            COP ramp-up factors [0,1] per chiller during startup, shape (N,).
+            If None, all active chillers use factor 1 (fully ramped).
 
         Returns
         -------
@@ -241,12 +245,26 @@ class SimulationEnvironment:
 
         # =====================================================================
         # Compute degraded COP (vectorized)
-        # COP_m = base_cop / (1 + alpha * temp_rise[m])
+        # COP_m = (base_cop * age_factor[m]) / (1 + alpha * temp_rise[m])
+        # Age factor decays exponentially from 100% at age=0 to 80% at age=1yr.
         # Shape: (N,)
         # =====================================================================
         base_cop = self.chiller_array.base_cop
         alpha = self.chiller_array.alpha
-        cop_array = base_cop / (1.0 + alpha * temp_rise)
+        age_factors = self.chiller_array.cop_age_factors
+        base_cop_per_unit = base_cop * age_factors
+        cop_array = base_cop_per_unit / (1.0 + alpha * temp_rise)
+
+        # Apply startup ramp (linear: 0 to 1 over startup time)
+        if startup_factors is not None:
+            if startup_factors.shape != (self.num_chillers,):
+                raise ValueError(
+                    f"startup_factors shape {startup_factors.shape} "
+                    f"must match num_chillers ({self.num_chillers})"
+                )
+            # Minimum factor to avoid division by zero; models minimal cooling at t=0
+            factors = np.maximum(startup_factors, 0.01)
+            cop_array = cop_array * factors
 
         # =====================================================================
         # Total work = sum(load / COP) for active chillers only
@@ -291,7 +309,9 @@ class SimulationEnvironment:
 
         active_float = active_mask.astype(np.float64)
         temp_rise = np.dot(active_float, self._interaction_matrix[:, position_idx])
-        return self.chiller_array.base_cop / (1.0 + self.chiller_array.alpha * temp_rise)
+        age_factor = self.chiller_array.cop_age_factors[position_idx]
+        base_cop_aged = self.chiller_array.base_cop * age_factor
+        return base_cop_aged / (1.0 + self.chiller_array.alpha * temp_rise)
 
     def get_thermal_impact_on(
         self,
