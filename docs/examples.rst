@@ -10,6 +10,10 @@ Example 1: Visualizing a Thermal Plume
 
 Visualize how one chiller's exhaust affects the entire array:
 
+.. image:: _static/images/example1_thermal_plume.png
+   :alt: Thermal wake from center chiller in 5×5 array
+   :width: 500px
+
 .. code-block:: python
 
    import numpy as np
@@ -66,6 +70,10 @@ Example 2: The Density Penalty
 
 Compare COP of an isolated chiller vs. one surrounded by active neighbors:
 
+.. image:: _static/images/example2_density_penalty.png
+   :alt: Isolated vs dense array COP comparison
+   :width: 450px
+
 .. code-block:: python
 
    import numpy as np
@@ -116,6 +124,10 @@ Example 3: "Less is More" Optimization
 Demonstrate that running fewer, optimally-selected chillers can be more
 efficient than running all of them:
 
+.. image:: _static/images/example3_less_is_more.png
+   :alt: Standard vs optimized activation energy comparison
+   :width: 450px
+
 .. code-block:: python
 
    import numpy as np
@@ -163,6 +175,10 @@ Example 4: Wind Direction Sensitivity
 -------------------------------------
 
 Analyze how different wind directions affect system efficiency:
+
+.. image:: _static/images/example4_wind_sensitivity.png
+   :alt: Total work vs wind direction
+   :width: 500px
 
 .. code-block:: python
 
@@ -215,6 +231,10 @@ Example 5: Comparing Interaction Models
 ---------------------------------------
 
 Compare different thermal interaction models on the same array:
+
+.. image:: _static/images/example5_interaction_models.png
+   :alt: Work and COP for different interaction models
+   :width: 500px
 
 .. code-block:: python
 
@@ -279,6 +299,10 @@ Example 6: Large-Scale Array Analysis
 -------------------------------------
 
 Simulate a larger data center with 100 chillers:
+
+.. image:: _static/images/example6_large_scale.png
+   :alt: Work vs number of active chillers in 100-chiller array
+   :width: 550px
 
 .. code-block:: python
 
