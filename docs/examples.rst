@@ -81,9 +81,12 @@ Compare COP of an isolated chiller vs. one surrounded by active neighbors:
    from src.models import GaussianPlumeModel
    from src.simulation import SimulationEnvironment
 
-   # Setup 5x5 array
+   # Setup 5x5 array (base_cop=5.5 typical for water-cooled chillers)
    wind = WindVector(velocity_m_per_s=(1.0, 0.4), ambient_temp_k=298.15)
-   array = ChillerArray.create_grid(rows=5, cols=5, spacing_m=3.0, base_cop=4.0)
+   array = ChillerArray.create_grid(
+       rows=5, cols=5, spacing_m=5.0, base_cop=5.5,
+       ages_years=np.zeros(25, dtype=np.float64),
+   )
    env = SimulationEnvironment(array, wind, GaussianPlumeModel(1.2))
 
    center_idx = 12  # Middle chiller
@@ -110,12 +113,12 @@ Compare COP of an isolated chiller vs. one surrounded by active neighbors:
 
 .. code-block:: text
 
-   Isolated Chiller COP: 4.00
-   Crowded Chiller COP: 2.80
-   Efficiency Loss: 30.1%
+   Isolated Chiller COP: 5.50
+   Crowded Chiller COP: 4.59
+   Efficiency Loss: 16.5%
 
 This demonstrates that a chiller in the center of a dense array experiences
-a **30% reduction in COP** due to thermal interference from surrounding units.
+reduced COP due to thermal interference from surrounding units.
 
 
 Example 3: "Less is More" Optimization
@@ -260,9 +263,12 @@ Compare different thermal interaction models on the same array:
                            A[k, m] = self.decay / (np.linalg.norm(d) + 1)
            return A
 
-   # Setup
+   # Setup (base_cop=5.5, new chillers)
    wind = WindVector(velocity_m_per_s=(1.0, 0.4), ambient_temp_k=298.15)
-   array = ChillerArray.create_grid(rows=5, cols=5, spacing_m=3.0)
+   array = ChillerArray.create_grid(
+       rows=5, cols=5, spacing_m=4.0, base_cop=5.5,
+       ages_years=np.zeros(25, dtype=np.float64),
+   )
    active = np.ones(array.num_chillers, dtype=bool)
    load = 100.0
 
@@ -282,9 +288,9 @@ Compare different thermal interaction models on the same array:
 
 .. code-block:: text
 
-   Gaussian (σ=1.2): 33.43 kW (Mean COP: 3.08)
-   Gaussian (σ=2.0): 36.19 kW (Mean COP: 2.88)
-   Simple Distance: 38.86 kW (Mean COP: 2.67)
+   Gaussian (σ=1.2): 22.19 kW (Mean COP: 4.58)
+   Gaussian (σ=2.0): 23.45 kW (Mean COP: 4.36)
+   Simple Distance: 26.05 kW (Mean COP: 3.94)
 
 The dispersion coefficient (σ) significantly affects predictions:
 

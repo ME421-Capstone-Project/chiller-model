@@ -218,7 +218,11 @@ def plot_example1_thermal_plume() -> None:
 def plot_example2_density_penalty() -> None:
     """Example 2: Isolated vs crowded COP comparison."""
     wind = WindVector(velocity_m_per_s=(1.0, 0.4), ambient_temp_k=298.15)
-    array = ChillerArray.create_grid(rows=5, cols=5, spacing_m=3.0, base_cop=4.0)
+    # base_cop=5.5 typical for water-cooled chillers; 5m spacing; new chillers (age=0)
+    array = ChillerArray.create_grid(
+        rows=5, cols=5, spacing_m=5.0, base_cop=5.5,
+        ages_years=np.zeros(25, dtype=np.float64),
+    )
     env = SimulationEnvironment(array, wind, GaussianPlumeModel(1.2))
     center_idx = 12
 
@@ -243,8 +247,8 @@ def plot_example2_density_penalty() -> None:
     for b in bars:
         ax.text(b.get_x() + b.get_width() / 2, b.get_height() + pad, f"{b.get_height():.2f}",
                 ha="center", va="bottom", fontsize=10)
-    ax.set_ylim(0, 4.8)
-    ax.axhline(4.0, color="gray", linestyle="--", alpha=0.5)
+    ax.set_ylim(0, 6.2)
+    ax.axhline(5.5, color="gray", linestyle="--", alpha=0.5)
     fig.tight_layout()
     _save(fig, "example2_density_penalty.png")
 
@@ -252,7 +256,10 @@ def plot_example2_density_penalty() -> None:
 def plot_example3_less_is_more() -> None:
     """Example 3: Standard vs optimized activation."""
     wind = WindVector(velocity_m_per_s=(1.0, 0.4), ambient_temp_k=298.15)
-    array = ChillerArray.create_grid(rows=5, cols=5, spacing_m=3.0)
+    array = ChillerArray.create_grid(
+        rows=5, cols=5, spacing_m=4.0, base_cop=5.5,
+        ages_years=np.zeros(25, dtype=np.float64),
+    )
     env = SimulationEnvironment(array, wind, GaussianPlumeModel(1.2))
     total_load = 100.0
     target = 15
@@ -287,7 +294,10 @@ def plot_example3_less_is_more() -> None:
 
 def plot_example4_wind_sensitivity() -> None:
     """Example 4: Work vs wind direction."""
-    array = ChillerArray.create_grid(rows=5, cols=5, spacing_m=3.0)
+    array = ChillerArray.create_grid(
+        rows=5, cols=5, spacing_m=4.0, base_cop=5.5,
+        ages_years=np.zeros(25, dtype=np.float64),
+    )
     model = GaussianPlumeModel(1.2)
     active = np.ones(array.num_chillers, dtype=bool)
     load = 100.0
@@ -340,7 +350,10 @@ def plot_example5_interaction_models() -> None:
             return A
 
     wind = WindVector(velocity_m_per_s=(1.0, 0.4), ambient_temp_k=298.15)
-    array = ChillerArray.create_grid(rows=5, cols=5, spacing_m=3.0)
+    array = ChillerArray.create_grid(
+        rows=5, cols=5, spacing_m=4.0, base_cop=5.5,
+        ages_years=np.zeros(25, dtype=np.float64),
+    )
     active = np.ones(array.num_chillers, dtype=bool)
     load = 100.0
 
