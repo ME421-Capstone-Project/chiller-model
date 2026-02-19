@@ -1,14 +1,18 @@
 Examples
 ========
 
-This page provides practical examples demonstrating key features of the
-chiller simulation package.
+Practical examples you can run yourself. Each section includes code snippets,
+explanation, and visuals where helpful.
 
 
 Example 1: Visualizing a Thermal Plume
 --------------------------------------
 
 Visualize how one chiller's exhaust affects the entire array:
+
+.. image:: _static/images/example1_thermal_plume.png
+   :alt: Thermal wake from center chiller in 5×5 array
+   :width: 500px
 
 .. code-block:: python
 
@@ -66,6 +70,10 @@ Example 2: The Density Penalty
 
 Compare COP of an isolated chiller vs. one surrounded by active neighbors:
 
+.. image:: _static/images/example2_density_penalty.png
+   :alt: Isolated vs dense array COP comparison
+   :width: 450px
+
 .. code-block:: python
 
    import numpy as np
@@ -73,9 +81,12 @@ Compare COP of an isolated chiller vs. one surrounded by active neighbors:
    from src.models import GaussianPlumeModel
    from src.simulation import SimulationEnvironment
 
-   # Setup 5x5 array
+   # Setup 5x5 array (base_cop=5.5 typical for water-cooled chillers)
    wind = WindVector(velocity_m_per_s=(1.0, 0.4), ambient_temp_k=298.15)
-   array = ChillerArray.create_grid(rows=5, cols=5, spacing_m=3.0, base_cop=4.0)
+   array = ChillerArray.create_grid(
+       rows=5, cols=5, spacing_m=5.0, base_cop=5.5,
+       ages_years=np.zeros(25, dtype=np.float64),
+   )
    env = SimulationEnvironment(array, wind, GaussianPlumeModel(1.2))
 
    center_idx = 12  # Middle chiller
@@ -102,12 +113,12 @@ Compare COP of an isolated chiller vs. one surrounded by active neighbors:
 
 .. code-block:: text
 
-   Isolated Chiller COP: 4.00
-   Crowded Chiller COP: 2.80
-   Efficiency Loss: 30.1%
+   Isolated Chiller COP: 5.50
+   Crowded Chiller COP: 4.59
+   Efficiency Loss: 16.5%
 
 This demonstrates that a chiller in the center of a dense array experiences
-a **30% reduction in COP** due to thermal interference from surrounding units.
+reduced COP due to thermal interference from surrounding units.
 
 
 Example 3: "Less is More" Optimization
@@ -115,6 +126,10 @@ Example 3: "Less is More" Optimization
 
 Demonstrate that running fewer, optimally-selected chillers can be more
 efficient than running all of them:
+
+.. image:: _static/images/example3_less_is_more.png
+   :alt: Standard vs optimized activation energy comparison
+   :width: 450px
 
 .. code-block:: python
 
@@ -163,6 +178,10 @@ Example 4: Wind Direction Sensitivity
 -------------------------------------
 
 Analyze how different wind directions affect system efficiency:
+
+.. image:: _static/images/example4_wind_sensitivity.png
+   :alt: Total work vs wind direction
+   :width: 500px
 
 .. code-block:: python
 
@@ -216,6 +235,10 @@ Example 5: Comparing Interaction Models
 
 Compare different thermal interaction models on the same array:
 
+.. image:: _static/images/example5_interaction_models.png
+   :alt: Work and COP for different interaction models
+   :width: 500px
+
 .. code-block:: python
 
    import numpy as np
@@ -240,9 +263,12 @@ Compare different thermal interaction models on the same array:
                            A[k, m] = self.decay / (np.linalg.norm(d) + 1)
            return A
 
-   # Setup
+   # Setup (base_cop=5.5, new chillers)
    wind = WindVector(velocity_m_per_s=(1.0, 0.4), ambient_temp_k=298.15)
-   array = ChillerArray.create_grid(rows=5, cols=5, spacing_m=3.0)
+   array = ChillerArray.create_grid(
+       rows=5, cols=5, spacing_m=4.0, base_cop=5.5,
+       ages_years=np.zeros(25, dtype=np.float64),
+   )
    active = np.ones(array.num_chillers, dtype=bool)
    load = 100.0
 
@@ -262,9 +288,9 @@ Compare different thermal interaction models on the same array:
 
 .. code-block:: text
 
-   Gaussian (σ=1.2): 33.43 kW (Mean COP: 3.08)
-   Gaussian (σ=2.0): 36.19 kW (Mean COP: 2.88)
-   Simple Distance: 38.86 kW (Mean COP: 2.67)
+   Gaussian (σ=1.2): 22.19 kW (Mean COP: 4.58)
+   Gaussian (σ=2.0): 23.45 kW (Mean COP: 4.36)
+   Simple Distance: 26.05 kW (Mean COP: 3.94)
 
 The dispersion coefficient (σ) significantly affects predictions:
 
@@ -280,6 +306,10 @@ Example 6: Large-Scale Array Analysis
 
 Simulate a larger data center with 100 chillers:
 
+.. image:: _static/images/example6_large_scale.png
+   :alt: Work vs number of active chillers in 100-chiller array
+   :width: 550px
+
 .. code-block:: python
 
    import numpy as np
@@ -287,15 +317,18 @@ Simulate a larger data center with 100 chillers:
    from src.models import GaussianPlumeModel
    from src.simulation import SimulationEnvironment, Optimizer
 
-   # 10x10 array
-   array = ChillerArray.create_grid(rows=10, cols=10, spacing_m=5.0)
+   # 10x10 array, fixed 10,000 kW load
+   array = ChillerArray.create_grid(
+       rows=10, cols=10, spacing_m=5.0, base_cop=5.5,
+       ages_years=np.zeros(100, dtype=np.float64),
+   )
    wind = WindVector(velocity_m_per_s=(3.0, 1.0), ambient_temp_k=303.15)
    model = GaussianPlumeModel(1.5)
    env = SimulationEnvironment(array, wind, model)
 
-   total_load = 500.0  # kW
+   total_load = 10000.0  # Fixed cooling load (kW)
 
-   # Find optimal number of active chillers
+   # Total work for 20 to 100 active chillers (same load)
    results = []
    for n_active in range(20, 101, 10):
        optimizer = Optimizer(env, total_load)
@@ -304,7 +337,7 @@ Simulate a larger data center with 100 chillers:
        results.append((n_active, perf.total_work_kw))
        print(f"{n_active} chillers: {perf.total_work_kw:.2f} kW")
 
-   # Find sweet spot
+   # Find sweet spot (lowest total work for the same load)
    min_work = min(results, key=lambda x: x[1])
    print(f"\nOptimal configuration: {min_work[0]} chillers at {min_work[1]:.2f} kW")
 
@@ -312,21 +345,199 @@ Simulate a larger data center with 100 chillers:
 
 .. code-block:: text
 
-   20 chillers: 127.10 kW
-   30 chillers: 131.08 kW
-   40 chillers: 135.29 kW
-   50 chillers: 139.90 kW
-   60 chillers: 144.79 kW
-   70 chillers: 149.87 kW
-   80 chillers: 155.19 kW
-   90 chillers: 160.81 kW
-   100 chillers: 166.80 kW
+   20 chillers: 1848.68 kW
+   30 chillers: 1906.55 kW
+   40 chillers: 1967.86 kW
+   50 chillers: 2034.98 kW
+   60 chillers: 2106.07 kW
+   70 chillers: 2179.93 kW
+   80 chillers: 2257.30 kW
+   90 chillers: 2339.11 kW
+   100 chillers: 2426.17 kW
 
-   Optimal configuration: 20 chillers at 127.10 kW
+   Optimal configuration: 20 chillers at 1848.68 kW
 
-For this 100-chiller array, using only 20 optimally-selected chillers saves
-**24% energy** compared to running all 100 units. The "less is more" principle
-is even more dramatic at larger scales.
+For a fixed 10,000 kW load, using only 20 optimally-selected chillers uses **24% less**
+electrical work than running all 100 units. The "less is more" principle: fewer
+chillers can mean less thermal interference and lower total energy use.
+
+
+Example 7: Chiller Aging and COP Degradation
+---------------------------------------------
+
+Older chillers lose efficiency. The model applies an age factor: new chillers
+get 100% COP, and efficiency decays over time (e.g. 80% at 1 year).
+
+**What the code does:**
+
+- ``ages_years``: One value per chiller (years since install). Use 0 for new.
+- ``cop_age_factors``: Computed automatically from age (exponential decay).
+- Pass ``ages_years`` when creating the array; the rest is handled internally.
+
+.. image:: _static/images/aging_cop_decay.png
+   :alt: COP decay curve vs chiller age
+   :width: 500px
+
+*How COP drops with age. Default: 80% at 1 year, then further decay.*
+
+.. code-block:: python
+
+   import numpy as np
+   from src.components import ChillerArray, WindVector
+   from src.models import GaussianPlumeModel
+   from src.simulation import SimulationEnvironment
+
+   # Option A: Set ages manually (0 = new, 10 = 10 years old)
+   ages = np.array([0.0, 1.0, 5.0, 10.0], dtype=np.float64)
+   array = ChillerArray.create_grid(
+       rows=2, cols=2, spacing_m=15.0, base_cop=5.0,
+       ages_years=ages,
+   )
+
+   # Option B: Random ages (useful for Monte Carlo)
+   array = ChillerArray.create_grid(
+       rows=3, cols=3, spacing_m=10.0, base_cop=5.0,
+       seed=42,  # Reproducible
+   )
+   print(f"Ages (years): {array.ages_years}")
+   print(f"COP factors:  {array.cop_age_factors}")
+
+**Compare new vs aged:**
+
+.. image:: _static/images/aging_new_vs_aged.png
+   :alt: New vs aged chillers energy comparison
+   :width: 450px
+
+.. code-block:: python
+
+   wind = WindVector(velocity_m_per_s=(5.0, 0.0), ambient_temp_k=298.15)
+   model = GaussianPlumeModel()
+   load = 500.0
+
+   # All new
+   array_new = ChillerArray.create_grid(
+       rows=2, cols=2, spacing_m=10.0, base_cop=5.0,
+       ages_years=np.zeros(4, dtype=np.float64),
+   )
+   env_new = SimulationEnvironment(array_new, wind, model)
+   r_new = env_new.compute_performance(np.ones(4, dtype=bool), load)
+
+   # Mixed ages (0, 5, 10, 15 years)
+   array_mixed = ChillerArray.create_grid(
+       rows=2, cols=2, spacing_m=10.0, base_cop=5.0,
+       ages_years=np.array([0.0, 5.0, 10.0, 15.0], dtype=np.float64),
+   )
+   env_mixed = SimulationEnvironment(array_mixed, wind, model)
+   r_mixed = env_mixed.compute_performance(np.ones(4, dtype=bool), load)
+
+   print(f"New:   {r_new.total_work_kw:.1f} kW")
+   print(f"Aged:  {r_mixed.total_work_kw:.1f} kW")
+   print(f"Extra work from aging: {(r_mixed.total_work_kw / r_new.total_work_kw - 1) * 100:.1f}%")
+
+Tune the decay in ``src/core/constants.py``: ``COP_AGE_FRACTION_AT_1_YEAR`` (default 0.8).
+
+
+Example 8: Dynamic Simulation (Time-Varying Load and Wind)
+----------------------------------------------------------
+
+Simulate over time with changing load, wind direction, and chiller startup.
+Useful for daily profiles, seasonal studies, or startup behavior.
+
+**Main pieces:**
+
+- ``DataCenter``: Supplies cooling load at each time (constant or time-varying).
+- ``DynamicSimulation``: Steps through time, picks active chillers, applies startup ramp.
+- ``DynamicStepResult``: Snapshot per step (load, work, wind, active mask).
+
+**Load profiles:**
+
+.. image:: _static/images/dynamic_load_profile.png
+   :alt: Sinusoidal daily load profile
+   :width: 550px
+
+.. code-block:: python
+
+   from src.components.data_center import DataCenter
+   from src.simulation import DynamicSimulation, SimulationEnvironment
+
+   # Constant load
+   dc = DataCenter(base_load_kw=500.0)
+
+   # Sinusoidal daily profile (e.g. 300–800 kW over 24 h)
+   dc = DataCenter.with_sinusoidal_profile(
+       base_load_kw=300.0,
+       peak_load_kw=800.0,
+       period_hours=24.0,
+   )
+
+**Chiller startup:** When a chiller turns on, its COP ramps from 0 to full over
+``startup_time_hours`` (default 0.25 h):
+
+.. image:: _static/images/dynamic_startup_ramp.png
+   :alt: COP startup ramp
+   :width: 450px
+
+**Run a dynamic simulation:**
+
+.. code-block:: python
+
+   import numpy as np
+   from src.components import ChillerArray, WindVector
+   from src.components.data_center import DataCenter
+   from src.models import GaussianPlumeModel
+   from src.simulation import DynamicSimulation, SimulationEnvironment
+
+   array = ChillerArray.create_grid(
+       rows=2, cols=2, spacing_m=15.0, base_cop=5.0,
+       ages_years=np.zeros(4, dtype=np.float64),
+   )
+   wind = WindVector(velocity_m_per_s=(3.0, 0.0), ambient_temp_k=298.15)
+   model = GaussianPlumeModel()
+   env = SimulationEnvironment(array, wind, model)
+   dc = DataCenter.with_sinusoidal_profile(
+       base_load_kw=300.0, peak_load_kw=800.0, period_hours=24.0
+   )
+
+   sim = DynamicSimulation(
+       environment=env,
+       data_center=dc,
+       time_step_hours=2.0,
+       startup_time_hours=0.25,
+   )
+
+   for step in sim.run(duration_hours=12.0):
+       n_active = int(np.sum(step.active_mask))
+       print(f"t={step.time_hours:.1f}h  load={step.load_kw:.0f} kW  "
+             f"work={step.total_work_kw:.1f} kW  active={n_active}")
+
+**Varying wind:** Pass a ``wind_profile`` callable that returns a ``WindVector``
+for each time:
+
+.. code-block:: python
+
+   from src.components import sinusoidal_direction_profile
+
+   wind_profile = sinusoidal_direction_profile(
+       speed_m_per_s=5.0,
+       angle_center_deg=90.0,
+       angle_amplitude_deg=60.0,
+       period_hours=24.0,
+       ambient_temp_k=298.15,
+   )
+   sim = DynamicSimulation(
+       environment=env,
+       data_center=dc,
+       time_step_hours=2.0,
+       wind_profile=wind_profile,
+   )
+
+**Example output over 12 hours:**
+
+.. image:: _static/images/dynamic_simulation_timeline.png
+   :alt: Dynamic simulation timeline
+   :width: 550px
+
+Run the full demo: ``PYTHONPATH=src python scripts/example_dynamic_simulation.py``
 
 
 Jupyter Notebook Demo

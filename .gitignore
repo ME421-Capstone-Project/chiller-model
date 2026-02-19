@@ -231,5 +231,6 @@ __marimo__/
 # Keep the final PDF output
 !report/*.pdf
 
-# Generated figures
+# Generated figures (except doc images)
 *.png
+!docs/_static/images/*.png
