@@ -92,9 +92,12 @@ def plot_aging_new_vs_aged() -> None:
     )
     ax.set_ylabel("Electrical work (kW)")
     ax.set_title("Aged Chillers Use More Energy (500 kW load)")
+    max_h = max(b.get_height() for b in bars)
+    pad = max(5, max_h * 0.06)
     for b in bars:
-        ax.text(b.get_x() + b.get_width() / 2, b.get_height() + 2, f"{b.get_height():.0f} kW", ha="center")
-    ax.set_ylim(0, max(r_new.total_work_kw, r_mixed.total_work_kw) * 1.15)
+        ax.text(b.get_x() + b.get_width() / 2, b.get_height() + pad, f"{b.get_height():.0f} kW",
+                ha="center", va="bottom", fontsize=10)
+    ax.set_ylim(0, max(r_new.total_work_kw, r_mixed.total_work_kw) * 1.2)
     fig.tight_layout()
     _save(fig, "aging_new_vs_aged.png")
 
@@ -235,9 +238,12 @@ def plot_example2_density_penalty() -> None:
     )
     ax.set_ylabel("COP")
     ax.set_title("Density Penalty: Same Chiller, Different Neighbors")
+    max_h = max(b.get_height() for b in bars)
+    pad = max(0.15, max_h * 0.06)
     for b in bars:
-        ax.text(b.get_x() + b.get_width() / 2, b.get_height() + 0.05, f"{b.get_height():.2f}", ha="center")
-    ax.set_ylim(0, 4.5)
+        ax.text(b.get_x() + b.get_width() / 2, b.get_height() + pad, f"{b.get_height():.2f}",
+                ha="center", va="bottom", fontsize=10)
+    ax.set_ylim(0, 4.8)
     ax.axhline(4.0, color="gray", linestyle="--", alpha=0.5)
     fig.tight_layout()
     _save(fig, "example2_density_penalty.png")
@@ -269,9 +275,12 @@ def plot_example3_less_is_more() -> None:
     )
     ax.set_ylabel("Total work (kW)")
     ax.set_title(f'"Less is More": {savings:.1f}% Energy Savings')
+    max_h = max(b.get_height() for b in bars)
+    pad = max(1.0, max_h * 0.06)
     for b in bars:
-        ax.text(b.get_x() + b.get_width() / 2, b.get_height() + 0.5, f"{b.get_height():.1f} kW", ha="center")
-    ax.set_ylim(0, max(r_std.total_work_kw, r_opt.total_work_kw) * 1.15)
+        ax.text(b.get_x() + b.get_width() / 2, b.get_height() + pad, f"{b.get_height():.1f} kW",
+                ha="center", va="bottom", fontsize=10)
+    ax.set_ylim(0, max(r_std.total_work_kw, r_opt.total_work_kw) * 1.2)
     fig.tight_layout()
     _save(fig, "example3_less_is_more.png")
 
