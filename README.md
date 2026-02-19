@@ -1,30 +1,30 @@
 # Chiller Array Simulation Package
 
-A modular Python package for simulating thermal interference effects in data center chiller arrays, with wind-aware optimization for improved energy efficiency.
+Simulate how data center chillers affect each other when packed together—and find the most efficient way to run them.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Documentation](https://img.shields.io/badge/docs-readthedocs-blue.svg)](https://chiller-model.readthedocs.io)
 
-## Overview
+## What This Does
 
-When chillers are densely packed in data center cooling arrays, thermal recirculation can significantly degrade performance. Hot exhaust from one unit gets drawn into the intake of neighboring units, reducing their Coefficient of Performance (COP) and increasing energy consumption.
+When chillers sit close together, hot exhaust from one can blow into another’s intake. That heats up the air and makes the second chiller work harder—using more electricity for the same cooling.
 
-This package models these thermal interference effects using physics-based Gaussian plume dispersion and provides optimization tools to select the most efficient subset of chillers to operate.
+This package models that effect and helps you choose which chillers to run so you use less energy.
 
-**Key findings from our simulations:**
-- Thermal interference can reduce individual chiller COP by **30%** or more
-- Wind-aware optimization can improve array efficiency by **10-15%**
-- Sometimes running **fewer** chillers is more efficient than running all of them
+**What we’ve seen in simulations:**
+- Thermal interference can cut a chiller’s efficiency by **30%** or more
+- Picking the right chillers (and sometimes running fewer) can save **10–15%** energy
+- Older chillers lose efficiency over time; the model accounts for that too
 
 ## Features
 
-- **Physics-Based Modeling**: Gaussian plume dispersion model for thermal wake effects
-- **Modular Architecture**: Pluggable interaction models, composable components
-- **Wind-Aware Optimization**: Greedy optimization accounting for wind direction
-- **Validated Inputs**: Pydantic models ensure physical plausibility
-- **SI Units**: All internal calculations use SI units (K, Pa, kg/s, J)
-- **Vectorized Computations**: NumPy-based for efficient large-scale simulations
+- **Thermal interference**: Physics-based model of how exhaust affects neighbors
+- **Optimization**: Finds which chillers to run for best efficiency
+- **Aging**: Models COP loss as chillers get older
+- **Dynamic simulation**: Time-varying load, wind, and chiller startup
+- **Modular design**: Swap models and components easily
+- **SI units**: All calculations in standard units (K, Pa, kg/s, J)
 
 ## Installation
 
@@ -164,9 +164,17 @@ Full documentation is available at [chiller-model.readthedocs.io](https://chille
 - [Examples](https://chiller-model.readthedocs.io/examples.html)
 - [API Reference](https://chiller-model.readthedocs.io/api/index.html)
 
+## Example Scripts
+
+Run these from the project root (with `PYTHONPATH=src`):
+
+- **Aging**: `python scripts/example_chiller_age.py` — how chiller age affects COP
+- **Dynamic simulation**: `python scripts/example_dynamic_simulation.py` — varying load, wind, and startup
+- **Doc figures**: `python scripts/generate_doc_figures.py` — generates plots for the docs
+
 ## Interactive Demo
 
-The `demo.ipynb` notebook provides an interactive walkthrough of the package features with visualizations:
+The `demo.ipynb` notebook provides an interactive walkthrough with visualizations:
 
 ```bash
 jupyter notebook demo.ipynb
@@ -185,27 +193,18 @@ pytest --cov=src
 pytest verification/
 ```
 
-## Physics Background
+## Physics (Simplified)
 
-### Thermal Interference Model
+**Thermal interference**: The model treats hot exhaust like a plume that spreads downwind. Chillers downwind get warmer air and lose efficiency.
 
-The Gaussian plume model calculates thermal impact between chillers:
-
-$$A_{km} = \frac{\exp(-d_{lat}^2 / (\sigma (d_{long} + 1)))}{d_{long} + 1}$$
-
-Where:
-- $A_{km}$: Thermal impact of chiller $k$ on chiller $m$
-- $d_{long}$: Longitudinal distance along wind direction (m)
-- $d_{lat}$: Lateral distance perpendicular to wind (m)
-- $\sigma$: Dispersion coefficient
-
-### COP Degradation
-
-COP degrades based on cumulative thermal interference:
+**COP formula**: Each chiller’s COP drops when it receives hot air from others:
 
 $$COP_m = \frac{COP_{base}}{1 + \alpha \sum_k A_{km}}$$
 
-Where $\alpha$ is the sensitivity coefficient (typically 0.5-1.0).
+- $A_{km}$ = how much chiller $k$ heats chiller $m$ (based on distance and wind)
+- $\alpha$ = sensitivity (typically 0.5–1.0)
+
+**Aging**: Older chillers get a COP multiplier below 1 (e.g. 80% at 1 year). See `src/core/constants.py` to adjust.
 
 ## Contributing
 

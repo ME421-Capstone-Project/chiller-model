@@ -1,7 +1,8 @@
 Chiller Simulation Documentation
 =================================
 
-A modular simulation package for chiller array thermal interactions with wind effects.
+Simulate how data center chillers affect each other and find the most efficient
+way to run them.
 
 .. toctree::
    :maxdepth: 2
@@ -18,13 +19,17 @@ A modular simulation package for chiller array thermal interactions with wind ef
 Overview
 --------
 
-This package provides tools for simulating thermal interference effects in chiller
-arrays caused by wind-driven exhaust recirculation. Key features:
+When chillers sit close together, hot exhaust from one can blow into another's
+intake. That heats the air and makes the second chiller work harder—using more
+electricity for the same cooling.
 
-- **Modular Design**: Components are independent and composable
-- **Pluggable Models**: Easy to swap thermal interaction models
-- **SI Units**: All internal calculations use SI units (K, Pa, kg/s, J)
-- **Validated Inputs**: Pydantic models ensure physical plausibility
+This package models that effect and helps you choose which chillers to run.
+
+- **Thermal interference**: Physics-based model of exhaust affecting neighbors
+- **Optimization**: Finds the best subset of chillers to run
+- **Aging**: Models efficiency loss as chillers get older
+- **Dynamic simulation**: Time-varying load, wind, and startup
+- **Modular design**: Swap models and components easily
 
 
 Quick Start
@@ -32,22 +37,19 @@ Quick Start
 
 .. code-block:: python
 
+   import numpy as np
    from src.components import WindVector, ChillerArray
    from src.models import GaussianPlumeModel
    from src.simulation import SimulationEnvironment
 
-   # Create wind conditions
    wind = WindVector(velocity_m_per_s=(5.0, 0.0), ambient_temp_k=298.15)
-
-   # Create chiller array (4x4 grid, 10m spacing)
    array = ChillerArray.create_grid(rows=4, cols=4, spacing_m=10.0)
-
-   # Create interaction model
    model = GaussianPlumeModel(dispersion_coeff=1.2)
-
-   # Run simulation
    env = SimulationEnvironment(array, wind, model)
+
+   active_mask = np.ones(array.num_chillers, dtype=bool)
    result = env.compute_performance(active_mask, total_load_kw=500.0)
+   print(f"Work: {result.total_work_kw:.2f} kW")
 
 
 Physics Background

@@ -1,7 +1,7 @@
 Getting Started
 ===============
 
-This guide will help you get up and running with the chiller simulation package.
+A short guide to install and run your first simulation.
 
 
 Installation
@@ -19,41 +19,35 @@ Install from source:
 Basic Concepts
 --------------
 
-The package models thermal interference effects in chiller arrays caused by
-wind-driven exhaust recirculation. When chillers are packed closely together,
-the hot exhaust from one unit can be drawn into the intake of another,
-reducing efficiency.
+When chillers are packed close together, hot exhaust from one can blow into
+another's intake. That heats the air and makes the second chiller work harder.
 
 Key Concepts
 ^^^^^^^^^^^^
 
-**Coefficient of Performance (COP)**
-   The ratio of cooling provided to electrical power consumed.
-   A COP of 4.0 means 4 kW of cooling per 1 kW of electricity.
+**COP (Coefficient of Performance)**
+   Cooling output ÷ electrical input. A COP of 4.0 means 4 kW cooling per 1 kW electricity.
 
 **Thermal Interference**
-   When exhaust from one chiller affects the intake temperature of another,
-   degrading its COP.
+   One chiller's exhaust heats another's intake, so the second chiller loses efficiency.
 
 **Gaussian Plume Model**
-   A physics-based model for how thermal plumes disperse downwind.
+   A physics-based model for how hot exhaust spreads downwind.
 
 
 Package Structure
 ^^^^^^^^^^^^^^^^^
 
-The package follows a modular, component-based architecture:
-
-- ``src.core``: Constants and Pydantic-validated configuration models
-- ``src.components``: Physical component models (WindVector, ChillerArray)
-- ``src.models``: Pluggable thermal interaction models (GaussianPlumeModel)
-- ``src.simulation``: Simulation orchestration and optimization
+- ``src.core``: Constants and configuration
+- ``src.components``: Wind, chillers, data center load
+- ``src.models``: Thermal interaction models (e.g. Gaussian plume)
+- ``src.simulation``: Simulation and optimization
 
 
 Your First Simulation
 ---------------------
 
-Here's a minimal example that sets up a chiller array and runs a simulation:
+Here's a minimal example:
 
 .. code-block:: python
 
@@ -62,49 +56,38 @@ Here's a minimal example that sets up a chiller array and runs a simulation:
    from src.models import GaussianPlumeModel
    from src.simulation import SimulationEnvironment
 
-   # 1. Define wind conditions
-   #    WindVector is an immutable dataclass representing atmospheric conditions
+   # 1. Wind (5 m/s east, 25°C)
    wind = WindVector(
-       velocity_m_per_s=(5.0, 2.0),  # (vx, vy) in m/s
-       ambient_temp_k=298.15  # 25°C in Kelvin
+       velocity_m_per_s=(5.0, 2.0),
+       ambient_temp_k=298.15
    )
 
-   # 2. Create a chiller array
-   #    This creates a 4x4 grid with 3-meter spacing
+   # 2. Chiller array (4×4 grid, 3 m spacing)
    array = ChillerArray.create_grid(
-       rows=4,
-       cols=4,
-       spacing_m=3.0,
-       base_cop=4.0,  # Base COP at rated conditions
-       alpha=0.7      # Sensitivity to temperature rise
+       rows=4, cols=4, spacing_m=3.0,
+       base_cop=4.0, alpha=0.7
    )
 
-   # 3. Set up the thermal interaction model
+   # 3. Interaction model
    model = GaussianPlumeModel(dispersion_coeff=1.2)
 
-   # 4. Create the simulation environment
-   env = SimulationEnvironment(
-       chiller_array=array,
-       wind=wind,
-       interaction_model=model
-   )
-
-   # 5. Run a simulation with all chillers active
+   # 4. Run simulation
+   env = SimulationEnvironment(array, wind, model)
    active_mask = np.ones(array.num_chillers, dtype=bool)
    result = env.compute_performance(active_mask, total_load_kw=100.0)
 
-   print(f"Total electrical work: {result.total_work_kw:.2f} kW")
+   print(f"Total work: {result.total_work_kw:.2f} kW")
    print(f"Mean COP: {np.mean(result.cop_array):.2f}")
 
 
 Understanding the Results
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The ``compute_performance`` method returns a ``PerformanceResult`` namedtuple with:
+``compute_performance`` returns:
 
-- ``total_work_kw``: Total electrical power consumed (kW)
-- ``cop_array``: COP for each chiller (degraded by thermal interference)
-- ``load_array``: Cooling load assigned to each chiller (kW)
+- ``total_work_kw``: Total electrical power (kW)
+- ``cop_array``: COP per chiller (degraded by thermal interference)
+- ``load_array``: Load per chiller (kW)
 
 
 Optimization

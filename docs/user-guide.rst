@@ -1,76 +1,58 @@
 User Guide
 ==========
 
-This guide covers the main features of the chiller simulation package
-with detailed examples.
+Main features and how to use them.
 
 
-WindVector: Modeling Atmospheric Conditions
--------------------------------------------
+Wind: Atmospheric Conditions
+----------------------------
 
-The ``WindVector`` class is an immutable dataclass representing wind and
-ambient conditions. All values use SI units internally.
+``WindVector`` holds wind speed, direction, and ambient temperature (all SI units).
 
-Creating a WindVector
-^^^^^^^^^^^^^^^^^^^^^
-
-Two ways to create a WindVector:
-
-**Direct construction with velocity components:**
+**Create from velocity (vx, vy) in m/s:**
 
 .. code-block:: python
 
    from src.components import WindVector
 
-   # Using (vx, vy) velocity components directly
    wind = WindVector(
-       velocity_m_per_s=(5.0, 2.0),  # 5 m/s in x, 2 m/s in y
+       velocity_m_per_s=(5.0, 2.0),
        ambient_temp_k=298.15
    )
 
-**Using speed and angle:**
+**Or from speed and angle (degrees from x-axis):**
 
 .. code-block:: python
 
-   # Using speed and angle (angle in degrees from x-axis)
    wind = WindVector.from_speed_and_angle(
        speed_m_per_s=5.0,
-       angle_deg=45.0,  # 45° from positive x-axis
+       angle_deg=45.0,
        ambient_temp_k=298.15
    )
 
-WindVector Properties
-^^^^^^^^^^^^^^^^^^^^^
+**Useful attributes:**
 
 .. code-block:: python
 
-   wind.speed_m_per_s     # Scalar wind speed
-   wind.direction         # Unit direction vector (vx, vy)
-   wind.ambient_temp_k    # Ambient temperature in Kelvin
+   wind.speed_m_per_s     # Scalar speed
+   wind.direction         # Unit vector (vx, vy)
+   wind.ambient_temp_k    # Temperature (K)
 
 
-ChillerArray: Spatial Arrangement
----------------------------------
+ChillerArray: Layout and Properties
+-----------------------------------
 
-The ``ChillerArray`` class manages a collection of chillers with their
-positions and characteristics.
+``ChillerArray`` holds chiller positions and properties (base COP, alpha, age).
 
-Creating Arrays
-^^^^^^^^^^^^^^^
-
-**Grid layout (most common):**
+**Grid layout:**
 
 .. code-block:: python
 
    from src.components import ChillerArray
-   from src.core import DEFAULT_BASE_COP
 
    array = ChillerArray.create_grid(
-       rows=5,
-       cols=5,
-       spacing_m=3.0,      # 3 meters between units
-       base_cop=DEFAULT_BASE_COP,  # 4.0
-       alpha=0.7           # Temperature sensitivity
+       rows=5, cols=5, spacing_m=3.0,
+       base_cop=4.0, alpha=0.7
    )
 
 **Custom positions:**
@@ -79,30 +61,14 @@ Creating Arrays
 
    import numpy as np
 
-   # Define custom positions as (N, 2) array
-   positions = np.array([
-       [0.0, 0.0],
-       [5.0, 0.0],
-       [2.5, 4.33],
-   ])
+   positions = np.array([[0, 0], [5, 0], [2.5, 4.33]])
+   array = ChillerArray(positions_m=positions, base_cop=4.0, alpha=0.7)
 
-   array = ChillerArray(
-       positions_m=positions,
-       base_cop=4.0,
-       alpha=0.7
-   )
+**Aging:** Pass ``ages_years`` (one value per chiller) to model older units.
+Omit it for new chillers (age 0). See the Examples page for details.
 
-Understanding Alpha
-^^^^^^^^^^^^^^^^^^^
-
-The ``alpha`` parameter controls how sensitive COP is to inlet temperature rise:
-
-.. math::
-
-   COP_m = \frac{COP_{base}}{1 + \alpha \sum_k A_{km}}
-
-Higher alpha means more COP degradation for the same temperature rise.
-Typical values range from 0.5 to 1.0.
+**Alpha:** How sensitive COP is to inlet temperature rise. Higher = more
+degradation. Typical: 0.5–1.0.
 
 
 Interaction Models
@@ -226,14 +192,11 @@ Greedy Optimization
    result = optimizer.optimize_greedy(min_active=15)
 
    print(f"Active: {result.num_active}")
-   print(f"Work: {result.final_work_kw:.2f} kW")
+   print(f"Work: {result.optimal_work_kw:.2f} kW")
    print(f"Mask: {result.optimal_mask}")
 
-The optimizer:
-
-1. Starts with all chillers active
-2. Iteratively removes the chiller whose removal minimizes total work
-3. Stops when ``min_active`` chillers remain
+The optimizer starts with all chillers on, then removes the one whose removal
+saves the most energy, until ``min_active`` remain.
 
 Comparing Strategies
 ^^^^^^^^^^^^^^^^^^^^
