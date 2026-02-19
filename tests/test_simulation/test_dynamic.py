@@ -147,3 +147,48 @@ class TestDynamicSimulation:
         )
         with pytest.raises(ValueError, match="duration_hours"):
             list(sim.run(duration_hours=0.0))
+
+    def test_varying_wind_direction(
+        self,
+        env: SimulationEnvironment,
+        constant_load_dc: DataCenter,
+    ) -> None:
+        """Wind direction should vary when wind_profile provided."""
+        from src.components.wind import sinusoidal_direction_profile
+
+        wind_profile = sinusoidal_direction_profile(
+            speed_m_per_s=5.0,
+            angle_center_deg=90.0,
+            angle_amplitude_deg=45.0,
+            period_hours=24.0,
+            ambient_temp_k=298.15,
+        )
+        sim = DynamicSimulation(
+            environment=env,
+            data_center=constant_load_dc,
+            time_step_hours=2.0,
+            wind_profile=wind_profile,
+        )
+        steps = list(sim.run(duration_hours=6.0))
+        # Wind should vary: direction changes with time
+        vx_values = [s.wind.velocity_m_per_s[0] for s in steps]
+        vy_values = [s.wind.velocity_m_per_s[1] for s in steps]
+        assert min(vx_values) != max(vx_values) or min(vy_values) != max(vy_values)
+        # Speed should stay constant
+        speeds = [s.wind.speed_m_per_s for s in steps]
+        assert all(s == pytest.approx(5.0) for s in speeds)
+
+    def test_step_includes_wind(
+        self,
+        env: SimulationEnvironment,
+        constant_load_dc: DataCenter,
+    ) -> None:
+        """Step result should include wind."""
+        sim = DynamicSimulation(
+            environment=env,
+            data_center=constant_load_dc,
+            time_step_hours=0.25,
+        )
+        result = sim.step(time_hours=0.0)
+        assert result.wind is not None
+        assert result.wind.speed_m_per_s == pytest.approx(5.0)

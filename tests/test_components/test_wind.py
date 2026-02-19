@@ -6,7 +6,7 @@ Validates immutability, property calculations, and physical constraints.
 import numpy as np
 import pytest
 
-from src.components.wind import WindVector
+from src.components.wind import WindVector, sinusoidal_direction_profile
 from src.core.configs import WindConfig
 
 
@@ -99,3 +99,66 @@ class TestWindVector:
 
         assert isinstance(arr, np.ndarray)
         np.testing.assert_allclose(arr, [5.0, 3.0])
+
+
+class TestSinusoidalDirectionProfile:
+    """Tests for sinusoidal_direction_profile."""
+
+    def test_returns_callable(self) -> None:
+        """Profile should return a callable."""
+        profile = sinusoidal_direction_profile(
+            speed_m_per_s=5.0,
+            angle_center_deg=90.0,
+            angle_amplitude_deg=30.0,
+            period_hours=24.0,
+            ambient_temp_k=298.15,
+        )
+        assert callable(profile)
+
+    def test_returns_wind_vector(self) -> None:
+        """Profile(time) should return WindVector."""
+        profile = sinusoidal_direction_profile(
+            speed_m_per_s=5.0,
+            angle_center_deg=0.0,
+            angle_amplitude_deg=0.0,
+            period_hours=24.0,
+            ambient_temp_k=298.15,
+        )
+        wind = profile(0.0)
+        assert isinstance(wind, WindVector)
+        assert wind.speed_m_per_s == pytest.approx(5.0)
+
+    def test_direction_varies_with_time(self) -> None:
+        """Wind direction should vary sinusoidally with time."""
+        profile = sinusoidal_direction_profile(
+            speed_m_per_s=5.0,
+            angle_center_deg=90.0,
+            angle_amplitude_deg=45.0,
+            period_hours=24.0,
+            ambient_temp_k=298.15,
+        )
+        wind_0 = profile(0.0)
+        wind_6 = profile(6.0)
+        wind_12 = profile(12.0)
+        # At t=0: angle = 90 + 45*sin(0) = 90 deg (north)
+        # At t=6: angle = 90 + 45*sin(pi/2) = 135 deg
+        # At t=12: angle = 90 + 45*sin(pi) = 90 deg
+        assert wind_0.velocity_m_per_s[0] == pytest.approx(0.0, abs=1e-10)
+        assert wind_0.velocity_m_per_s[1] == pytest.approx(5.0)
+        # Directions should differ between 0 and 6 hours
+        v0 = np.array(wind_0.velocity_m_per_s)
+        v6 = np.array(wind_6.velocity_m_per_s)
+        assert not np.allclose(v0, v6)
+
+    def test_speed_constant(self) -> None:
+        """Wind speed should remain constant over time."""
+        profile = sinusoidal_direction_profile(
+            speed_m_per_s=5.0,
+            angle_center_deg=0.0,
+            angle_amplitude_deg=90.0,
+            period_hours=24.0,
+            ambient_temp_k=298.15,
+        )
+        for t in [0.0, 6.0, 12.0, 18.0]:
+            wind = profile(t)
+            assert wind.speed_m_per_s == pytest.approx(5.0)

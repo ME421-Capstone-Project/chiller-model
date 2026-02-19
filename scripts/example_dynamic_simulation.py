@@ -1,10 +1,10 @@
 """
-Example: Dynamic Simulation with Varying Load and Chiller Startup
-================================================================
+Example: Dynamic Simulation with Varying Load, Wind, and Chiller Startup
+======================================================================
 
 Demonstrates:
 - Time-varying heat load from data center
-- Constant wind conditions
+- Constant or varying wind (direction)
 - Chiller startup delay: COP ramps linearly from 0 to full over startup time
 
 Usage
@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from components import ChillerArray, WindVector
+from components import ChillerArray, WindVector, sinusoidal_direction_profile
 from components.data_center import DataCenter
 from core.constants import (
     CHILLER_STARTUP_TIME_HOURS,
@@ -109,10 +109,58 @@ def demo_varying_load() -> None:
         )
 
 
+def demo_varying_wind() -> None:
+    """Demonstrate dynamic simulation with varying wind direction."""
+    print("\n" + "=" * 60)
+    print("3. VARYING WIND DIRECTION (sinusoidal)")
+    print("=" * 60)
+
+    array = ChillerArray.create_grid(
+        rows=2,
+        cols=2,
+        spacing_m=15.0,
+        base_cop=5.0,
+        ages_years=np.zeros(4, dtype=np.float64),
+    )
+    # Initial wind (used when wind_profile not provided at t=0)
+    wind = WindVector(velocity_m_per_s=(5.0, 0.0), ambient_temp_k=298.15)
+    model = GaussianPlumeModel()
+    env = SimulationEnvironment(array, wind, model)
+    dc = DataCenter(base_load_kw=500.0)
+
+    wind_profile = sinusoidal_direction_profile(
+        speed_m_per_s=5.0,
+        angle_center_deg=90.0,  # North
+        angle_amplitude_deg=60.0,
+        period_hours=24.0,
+        ambient_temp_k=298.15,
+    )
+
+    sim = DynamicSimulation(
+        environment=env,
+        data_center=dc,
+        time_step_hours=2.0,
+        wind_profile=wind_profile,
+    )
+
+    print("Time(h) | Load(kW) | Work(kW) | Wind(deg) | Active")
+    print("-" * 55)
+    for step in sim.run(duration_hours=8.0):
+        angle_deg = np.degrees(np.arctan2(
+            step.wind.velocity_m_per_s[1],
+            step.wind.velocity_m_per_s[0],
+        ))
+        n_active = int(np.sum(step.active_mask))
+        print(
+            f"  {step.time_hours:5.1f} | {step.load_kw:7.0f} | "
+            f"{step.total_work_kw:7.1f} | {angle_deg:8.1f} | {n_active}"
+        )
+
+
 def demo_startup_ramp() -> None:
     """Show COP startup ramp (linear function)."""
     print("\n" + "=" * 60)
-    print("3. COP STARTUP RAMP (linear 0→1)")
+    print("4. COP STARTUP RAMP (linear 0→1)")
     print("=" * 60)
 
     print("Time since start | COP factor")
@@ -124,10 +172,11 @@ def demo_startup_ramp() -> None:
 
 def main() -> None:
     """Run all dynamic simulation demos."""
-    print("\nDYNAMIC SIMULATION: Varying Load + Chiller Startup")
-    print("Wind: constant | Startup: linear COP ramp")
+    print("\nDYNAMIC SIMULATION: Varying Load, Wind, and Chiller Startup")
+    print("Startup: linear COP ramp")
     demo_constant_load()
     demo_varying_load()
+    demo_varying_wind()
     demo_startup_ramp()
     print("\n" + "=" * 60)
     print("Done.")

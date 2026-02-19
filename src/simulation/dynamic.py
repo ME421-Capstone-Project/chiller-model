@@ -1,8 +1,8 @@
-"""Dynamic simulation with time-varying load and chiller startup.
+"""Dynamic simulation with time-varying load, wind, and chiller startup.
 
 This module provides DynamicSimulation for stepping through time with:
 - Varying heat loads from the data center
-- Constant wind conditions
+- Varying wind (optional) or constant wind
 - Chiller startup delay (linear COP ramp from 0 to full)
 
 Reference
@@ -13,12 +13,13 @@ ASHRAE Handbook - HVAC Applications, Chapter 43 (Building Operations)
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import NamedTuple
+from typing import Callable, NamedTuple
 
 import numpy as np
 from numpy.typing import NDArray
 
 from components.data_center import DataCenter
+from components.wind import WindVector
 from core.constants import (
     CHILLER_STARTUP_TIME_HOURS,
     compute_cop_startup_factors_vectorized,
@@ -36,6 +37,8 @@ class DynamicStepResult(NamedTuple):
         Simulation time at end of step.
     load_kw : float
         Data center cooling load at this step.
+    wind : WindVector
+        Wind conditions at this step.
     active_mask : NDArray[np.bool_]
         Which chillers were active.
     performance : PerformanceResult
@@ -46,6 +49,7 @@ class DynamicStepResult(NamedTuple):
 
     time_hours: float
     load_kw: float
+    wind: WindVector
     active_mask: NDArray[np.bool_]
     performance: PerformanceResult
     total_work_kw: float
@@ -53,23 +57,27 @@ class DynamicStepResult(NamedTuple):
 
 @dataclass
 class DynamicSimulation:
-    """Dynamic simulation with varying load and chiller startup.
+    """Dynamic simulation with varying load, wind, and chiller startup.
 
     Steps through time with:
     - Time-varying heat load from DataCenter
-    - Constant wind
+    - Time-varying wind (if wind_profile provided) or constant wind
     - Chiller startup: COP ramps linearly from 0 to full over startup time
 
     Attributes
     ----------
     environment : SimulationEnvironment
-        Composed chiller array, wind, interaction model.
+        Composed chiller array, wind, interaction model. Wind used when
+        wind_profile is None; otherwise wind_profile(time) overrides.
     data_center : DataCenter
         Provides load_kw(time) for varying heat load.
     time_step_hours : float
         Duration of each step in hours.
     startup_time_hours : float
         Time for chiller COP to ramp from 0 to full after turn-on.
+    wind_profile : Callable[[float], WindVector] | None, optional
+        If provided, wind at each step = wind_profile(time_hours).
+        If None, use constant wind from environment.
 
     Notes
     -----
@@ -94,6 +102,7 @@ class DynamicSimulation:
     data_center: DataCenter
     time_step_hours: float
     startup_time_hours: float = CHILLER_STARTUP_TIME_HOURS
+    wind_profile: Callable[[float], WindVector] | None = None
 
     _time_since_start: NDArray[np.float64] = field(
         init=False, repr=False, default_factory=lambda: np.array([])
@@ -146,15 +155,25 @@ class DynamicSimulation:
         turned_off = ~active_mask
         self._time_since_start[turned_off] = -1.0
 
-    def _choose_active_mask(self, load_kw: float) -> NDArray[np.bool_]:
+    def _choose_active_mask(
+        self,
+        load_kw: float,
+        env: SimulationEnvironment,
+    ) -> NDArray[np.bool_]:
         """Choose which chillers to activate for given load.
 
-        Uses greedy optimizer to minimize work. Accounts for startup
-        by using current startup factors when evaluating.
+        Uses greedy optimizer to minimize work.
         """
-        optimizer = Optimizer(self.environment, total_load_kw=load_kw)
+        optimizer = Optimizer(env, total_load_kw=load_kw)
         result = optimizer.optimize_greedy(min_active=1)
         return result.optimal_mask
+
+    def _get_env_for_step(self, time_hours: float) -> SimulationEnvironment:
+        """Get environment with wind for current time step."""
+        if self.wind_profile is None:
+            return self.environment
+        wind = self.wind_profile(time_hours)
+        return self.environment.with_new_wind(wind)
 
     def step(
         self,
@@ -176,15 +195,18 @@ class DynamicSimulation:
             Result of this step.
         """
         load_kw = self.data_center.get_load_kw(time_hours)
+        env = self._get_env_for_step(time_hours)
+        wind = env.wind
+
         prev_active = np.zeros(self.environment.num_chillers, dtype=bool)
         if self._time_since_start.size > 0:
             prev_active = self._time_since_start >= 0
 
         if active_mask is None:
-            active_mask = self._choose_active_mask(load_kw)
+            active_mask = self._choose_active_mask(load_kw, env)
 
         startup_factors = self._get_startup_factors(active_mask)
-        performance = self.environment.compute_performance(
+        performance = env.compute_performance(
             active_mask,
             load_kw,
             startup_factors=startup_factors,
@@ -195,6 +217,7 @@ class DynamicSimulation:
         return DynamicStepResult(
             time_hours=time_hours,
             load_kw=load_kw,
+            wind=wind,
             active_mask=active_mask.copy(),
             performance=performance,
             total_work_kw=performance.total_work_kw,
