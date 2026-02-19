@@ -317,15 +317,18 @@ Simulate a larger data center with 100 chillers:
    from src.models import GaussianPlumeModel
    from src.simulation import SimulationEnvironment, Optimizer
 
-   # 10x10 array
-   array = ChillerArray.create_grid(rows=10, cols=10, spacing_m=5.0)
+   # 10x10 array, fixed 500 kW load
+   array = ChillerArray.create_grid(
+       rows=10, cols=10, spacing_m=5.0, base_cop=5.5,
+       ages_years=np.zeros(100, dtype=np.float64),
+   )
    wind = WindVector(velocity_m_per_s=(3.0, 1.0), ambient_temp_k=303.15)
    model = GaussianPlumeModel(1.5)
    env = SimulationEnvironment(array, wind, model)
 
-   total_load = 500.0  # kW
+   total_load = 500.0  # Fixed cooling load (kW)
 
-   # Find optimal number of active chillers
+   # Total work for 20 to 100 active chillers (same load)
    results = []
    for n_active in range(20, 101, 10):
        optimizer = Optimizer(env, total_load)
@@ -334,7 +337,7 @@ Simulate a larger data center with 100 chillers:
        results.append((n_active, perf.total_work_kw))
        print(f"{n_active} chillers: {perf.total_work_kw:.2f} kW")
 
-   # Find sweet spot
+   # Find sweet spot (lowest total work for the same load)
    min_work = min(results, key=lambda x: x[1])
    print(f"\nOptimal configuration: {min_work[0]} chillers at {min_work[1]:.2f} kW")
 
@@ -342,21 +345,21 @@ Simulate a larger data center with 100 chillers:
 
 .. code-block:: text
 
-   20 chillers: 127.10 kW
-   30 chillers: 131.08 kW
-   40 chillers: 135.29 kW
-   50 chillers: 139.90 kW
-   60 chillers: 144.79 kW
-   70 chillers: 149.87 kW
-   80 chillers: 155.19 kW
-   90 chillers: 160.81 kW
-   100 chillers: 166.80 kW
+   20 chillers: 92.43 kW
+   30 chillers: 95.33 kW
+   40 chillers: 98.39 kW
+   50 chillers: 101.75 kW
+   60 chillers: 105.30 kW
+   70 chillers: 109.00 kW
+   80 chillers: 112.87 kW
+   90 chillers: 116.96 kW
+   100 chillers: 121.31 kW
 
-   Optimal configuration: 20 chillers at 127.10 kW
+   Optimal configuration: 20 chillers at 92.43 kW
 
-For this 100-chiller array, using only 20 optimally-selected chillers saves
-**24% energy** compared to running all 100 units. The "less is more" principle
-is even more dramatic at larger scales.
+For a fixed 500 kW load, using only 20 optimally-selected chillers uses **24% less**
+electrical work than running all 100 units. The "less is more" principle: fewer
+chillers can mean less thermal interference and lower total energy use.
 
 
 Example 7: Chiller Aging and COP Degradation
