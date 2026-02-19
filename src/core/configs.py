@@ -1,11 +1,10 @@
-"""Pydantic validation models for chiller simulation configurations.
+"""Pydantic validation models for simulation inputs.
 
-All inputs are validated for physical plausibility before being used
-in simulations. Internal units follow SI standards (K, Pa, kg/s, J).
+All inputs are validated for physical plausibility. Internal units are SI.
 
 Reference
 ---------
-AHRI Standard 550/590-2015 for chiller rating conditions
+AHRI Standard 550/590-2015
 """
 
 from pydantic import BaseModel, Field, field_validator
@@ -21,71 +20,20 @@ from .constants import (
 
 
 class ChillerConfig(BaseModel):
-    """Validated chiller configuration.
-
-    All inputs validated for physical plausibility.
-    Internal units: SI (K, Pa, kg/s, J).
-
-    Attributes
-    ----------
-    base_cop : float
-        Coefficient of Performance at rated conditions.
-        Must be positive and <= 10 (thermodynamic limit).
-    rated_capacity_kw : float
-        Rated cooling capacity in kilowatts.
-    alpha : float
-        Sensitivity coefficient to inlet temperature rise.
-        Determines COP degradation rate.
-
-    Reference
-    ---------
-    AHRI Standard 550/590-2015
-
-    Examples
-    --------
-    >>> config = ChillerConfig(base_cop=5.0, rated_capacity_kw=500.0)
-    >>> config.alpha
-    0.7
-    """
+    """Validated chiller configuration (COP, capacity, sensitivity)."""
 
     base_cop: float = Field(
         default=DEFAULT_BASE_COP,
         gt=0,
         le=MAX_REALISTIC_COP,
-        description="COP at rated conditions",
     )
-    rated_capacity_kw: float = Field(
-        ...,
-        gt=0,
-        description="Rated cooling capacity in kW",
-    )
-    alpha: float = Field(
-        default=DEFAULT_ALPHA,
-        gt=0,
-        le=2.0,
-        description="Inlet temperature sensitivity coefficient",
-    )
+    rated_capacity_kw: float = Field(..., gt=0)
+    alpha: float = Field(default=DEFAULT_ALPHA, gt=0, le=2.0)
 
     @field_validator("base_cop")
     @classmethod
     def validate_cop_physical(cls, v: float) -> float:
-        """Validate COP is physically realistic.
-
-        Parameters
-        ----------
-        v : float
-            The COP value to validate.
-
-        Returns
-        -------
-        float
-            The validated COP value.
-
-        Raises
-        ------
-        ValueError
-            If COP exceeds thermodynamic limits.
-        """
+        """Reject COP values that exceed thermodynamic limits."""
         if v > MAX_REALISTIC_COP:
             raise ValueError(
                 f"COP > {MAX_REALISTIC_COP} is non-physical for vapor compression cycles"
@@ -94,66 +42,16 @@ class ChillerConfig(BaseModel):
 
 
 class WindConfig(BaseModel):
-    """Validated wind configuration.
+    """Validated wind configuration (velocity components, ambient temperature)."""
 
-    Attributes
-    ----------
-    velocity_x_m_per_s : float
-        X-component of wind velocity in m/s.
-    velocity_y_m_per_s : float
-        Y-component of wind velocity in m/s.
-    ambient_temp_k : float
-        Ambient dry-bulb temperature in Kelvin.
-        Must be above absolute zero.
-
-    Reference
-    ---------
-    ASHRAE Handbook - Fundamentals, Chapter 24 (Airflow)
-
-    Examples
-    --------
-    >>> config = WindConfig(
-    ...     velocity_x_m_per_s=5.0,
-    ...     velocity_y_m_per_s=0.0,
-    ...     ambient_temp_k=298.15
-    ... )
-    """
-
-    velocity_x_m_per_s: float = Field(
-        ...,
-        description="X-component of wind velocity in m/s",
-    )
-    velocity_y_m_per_s: float = Field(
-        ...,
-        description="Y-component of wind velocity in m/s",
-    )
-    ambient_temp_k: float = Field(
-        ...,
-        gt=0,
-        description="Ambient temperature in Kelvin",
-    )
+    velocity_x_m_per_s: float
+    velocity_y_m_per_s: float
+    ambient_temp_k: float = Field(..., gt=0)
 
     @field_validator("ambient_temp_k")
     @classmethod
     def validate_temp_physical(cls, v: float) -> float:
-        """Validate temperature is physically realistic.
-
-        Parameters
-        ----------
-        v : float
-            The temperature value to validate.
-
-        Returns
-        -------
-        float
-            The validated temperature value.
-
-        Raises
-        ------
-        ValueError
-            If temperature is below absolute zero or outside
-            realistic operating range.
-        """
+        """Reject temperatures outside realistic operating range."""
         if v <= 0:
             raise ValueError("Temperature must be > 0 K (above absolute zero)")
         if v < MIN_REALISTIC_TEMP_K:
@@ -170,28 +68,9 @@ class WindConfig(BaseModel):
 
 
 class SimulationConfig(BaseModel):
-    """Configuration for a complete simulation run.
-
-    Attributes
-    ----------
-    dispersion_coeff : float
-        Gaussian plume dispersion coefficient (sigma).
-    total_load_kw : float
-        Total cooling load to be distributed across chillers.
-
-    Reference
-    ---------
-    ASHRAE Handbook - HVAC Systems and Equipment, Chapter 40
-    """
+    """Validated simulation-run configuration (dispersion, total load)."""
 
     dispersion_coeff: float = Field(
-        default=DEFAULT_DISPERSION_COEFF,
-        gt=0,
-        le=5.0,
-        description="Gaussian plume dispersion coefficient",
+        default=DEFAULT_DISPERSION_COEFF, gt=0, le=5.0
     )
-    total_load_kw: float = Field(
-        ...,
-        gt=0,
-        description="Total cooling load in kW",
-    )
+    total_load_kw: float = Field(..., gt=0)

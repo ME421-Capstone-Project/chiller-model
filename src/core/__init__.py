@@ -1,11 +1,6 @@
-"""Core thermodynamic engines and configuration models.
+"""Core thermodynamic constants and configuration validation."""
 
-This module contains:
-- Physical constants (centralized, NO hard-coding elsewhere)
-- Pydantic validation models for configuration inputs
-- Thermodynamic property functions (pure functions)
-"""
-
+from .configs import ChillerConfig, SimulationConfig, WindConfig
 from .constants import (
     ABSOLUTE_ZERO_K,
     AGE_MAX_YEARS,
@@ -23,7 +18,6 @@ from .constants import (
     compute_cop_startup_factor_linear,
     compute_cop_startup_factors_vectorized,
 )
-from .configs import ChillerConfig, WindConfig
 
 __all__ = [
     "ABSOLUTE_ZERO_K",
@@ -42,5 +36,6 @@ __all__ = [
     "compute_cop_startup_factor_linear",
     "compute_cop_startup_factors_vectorized",
     "ChillerConfig",
+    "SimulationConfig",
     "WindConfig",
 ]
