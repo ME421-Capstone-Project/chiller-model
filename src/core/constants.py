@@ -143,6 +143,82 @@ def compute_cop_age_factor(age_years: float) -> float:
     return math.exp(-decay_rate * age_years)
 
 
+# =============================================================================
+# Chiller Startup (COP Ramp-Up)
+# =============================================================================
+
+CHILLER_STARTUP_TIME_HOURS: float = 0.25
+"""Time in hours for chiller COP to ramp from 0 to full after turn-on.
+
+Chillers do not reach rated COP immediately when started. This constant
+defines the ramp-up period. Change for different chiller types.
+
+Reference: Typical centrifugal chiller startup 10-30 minutes.
+"""
+
+
+def compute_cop_startup_factor_linear(
+    time_since_start_hours: float,
+    startup_time_hours: float = CHILLER_STARTUP_TIME_HOURS,
+) -> float:
+    """Compute COP multiplier during chiller startup (linear ramp).
+
+    COP rises linearly from 0 to 1 over startup_time_hours after turn-on.
+    Factor = min(1, time_since_start / startup_time).
+
+    Parameters
+    ----------
+    time_since_start_hours : float
+        Hours since chiller was turned on. Must be >= 0.
+    startup_time_hours : float, optional
+        Time to reach full COP (default from constants).
+
+    Returns
+    -------
+    float
+        COP multiplier in [0, 1]. Multiply steady-state COP by this.
+
+    Notes
+    -----
+    All numerical constants in this module. Linear model; future versions
+    may support exponential or other ramp shapes.
+    """
+    if time_since_start_hours <= 0:
+        return 0.0
+    if startup_time_hours <= 0:
+        return 1.0
+    return min(1.0, time_since_start_hours / startup_time_hours)
+
+
+def compute_cop_startup_factors_vectorized(
+    time_since_start_hours: "np.ndarray",
+    startup_time_hours: float = CHILLER_STARTUP_TIME_HOURS,
+) -> "np.ndarray":
+    """Compute COP startup factors for array of chillers (vectorized).
+
+    Parameters
+    ----------
+    time_since_start_hours : np.ndarray
+        Hours since each chiller was turned on, shape (N,).
+        Use 0 for just-turned-on, negative for inactive (factor 0).
+    startup_time_hours : float, optional
+        Time to reach full COP.
+
+    Returns
+    -------
+    np.ndarray
+        COP multipliers, shape (N,).
+    """
+    import numpy as np
+
+    factors = np.where(
+        time_since_start_hours <= 0,
+        0.0,
+        np.minimum(1.0, time_since_start_hours / startup_time_hours),
+    )
+    return factors.astype(np.float64)
+
+
 def compute_cop_age_factors_vectorized(ages_years: "np.ndarray") -> "np.ndarray":
     """Compute COP multipliers for an array of chiller ages (vectorized).
 

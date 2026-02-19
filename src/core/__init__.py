@@ -10,6 +10,7 @@ from .constants import (
     ABSOLUTE_ZERO_K,
     AGE_MAX_YEARS,
     AGE_MIN_YEARS,
+    CHILLER_STARTUP_TIME_HOURS,
     COP_AGE_DECAY_TIMESCALE_YEARS,
     COP_AGE_FRACTION_AT_1_YEAR,
     DEFAULT_ALPHA,
@@ -19,6 +20,8 @@ from .constants import (
     STANDARD_TEMP_K,
     compute_cop_age_factor,
     compute_cop_age_factors_vectorized,
+    compute_cop_startup_factor_linear,
+    compute_cop_startup_factors_vectorized,
 )
 from .configs import ChillerConfig, WindConfig
 
@@ -33,8 +36,11 @@ __all__ = [
     "AGE_MAX_YEARS",
     "COP_AGE_FRACTION_AT_1_YEAR",
     "COP_AGE_DECAY_TIMESCALE_YEARS",
+    "CHILLER_STARTUP_TIME_HOURS",
     "compute_cop_age_factor",
     "compute_cop_age_factors_vectorized",
+    "compute_cop_startup_factor_linear",
+    "compute_cop_startup_factors_vectorized",
     "ChillerConfig",
     "WindConfig",
 ]

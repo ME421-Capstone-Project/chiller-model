@@ -180,6 +180,33 @@ class TestPerformanceCalculation:
         assert result_1yr.cop_array[0] == pytest.approx(0.8 * base_cop)
         assert result_1yr.cop_array[0] < result_new.cop_array[0]
 
+    def test_startup_factors_reduce_cop(self) -> None:
+        """Startup factors should reduce effective COP (ramp-up)."""
+        array = ChillerArray.create_grid(
+            rows=1,
+            cols=1,
+            spacing_m=10.0,
+            base_cop=5.0,
+            ages_years=np.array([0.0], dtype=np.float64),
+        )
+        wind = WindVector(velocity_m_per_s=(5.0, 0.0), ambient_temp_k=298.15)
+        model = GaussianPlumeModel()
+        env = SimulationEnvironment(array, wind, model)
+
+        active_mask = np.ones(1, dtype=bool)
+        # No startup: full COP
+        result_full = env.compute_performance(active_mask, total_load_kw=100.0)
+        # Startup factor 0.5: half COP
+        result_half = env.compute_performance(
+            active_mask,
+            total_load_kw=100.0,
+            startup_factors=np.array([0.5], dtype=np.float64),
+        )
+
+        assert result_half.cop_array[0] == pytest.approx(2.5)  # 5 * 0.5
+        assert result_full.cop_array[0] == pytest.approx(5.0)
+        assert result_half.total_work_kw > result_full.total_work_kw
+
 
 class TestEnvironmentFactories:
     """Tests for factory methods."""
