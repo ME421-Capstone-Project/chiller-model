@@ -387,12 +387,15 @@ def plot_example5_interaction_models() -> None:
 
 
 def plot_example6_large_scale() -> None:
-    """Example 6: Work vs number of active chillers (100-chiller array)."""
-    array = ChillerArray.create_grid(rows=10, cols=10, spacing_m=5.0)
+    """Example 6: Total work for fixed load (500 kW) vs. active chillers (20–100)."""
+    array = ChillerArray.create_grid(
+        rows=10, cols=10, spacing_m=5.0, base_cop=5.5,
+        ages_years=np.zeros(100, dtype=np.float64),
+    )
     wind = WindVector(velocity_m_per_s=(3.0, 1.0), ambient_temp_k=303.15)
     model = GaussianPlumeModel(1.5)
     env = SimulationEnvironment(array, wind, model)
-    total_load = 500.0
+    total_load = 500.0  # Fixed cooling load (kW)
 
     n_active_range = list(range(20, 101, 10))
     works = []
@@ -406,11 +409,12 @@ def plot_example6_large_scale() -> None:
     ax.plot(n_active_range, works, "b-o", linewidth=2, markersize=8)
     best_idx = np.argmin(works)
     ax.scatter(n_active_range[best_idx], works[best_idx], c="red", s=200, marker="*", zorder=5, label=f"Optimal: {n_active_range[best_idx]} chillers")
-    ax.set_xlabel("Number of active chillers")
-    ax.set_ylabel("Total work (kW)")
-    ax.set_title("Large-Scale Array (100 chillers): Less is More")
+    ax.set_xlabel("Number of active chillers (of 100)")
+    ax.set_ylabel("Total electrical work (kW)")
+    ax.set_title("Fixed 500 kW Load: Total Work vs. Active Chillers")
     ax.legend()
     ax.grid(True, alpha=0.3)
+    ax.annotate("Same cooling load; fewer chillers can use less energy", xy=(0.5, 0.02), xycoords="axes fraction", ha="center", fontsize=9, style="italic")
     fig.tight_layout()
     _save(fig, "example6_large_scale.png")
 
