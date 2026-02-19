@@ -1,15 +1,8 @@
-"""Simulation orchestration and optimization.
-
-This module contains:
-- SimulationEnvironment: Central composed simulation system
-- Optimizer: Strategies for optimizing chiller array operation
-- DynamicSimulation: Time-stepped simulation with varying load and startup
-- PerformanceResult: Immutable result container
-"""
+"""Simulation orchestration: transfer function, optimisation, dynamics."""
 
 from .dynamic import DynamicSimulation, DynamicStepResult
-from .environment import SimulationEnvironment, PerformanceResult
-from .optimizer import Optimizer, OptimizationResult
+from .environment import PerformanceResult, SimulationEnvironment
+from .optimizer import OptimizationResult, Optimizer
 
 __all__ = [
     "SimulationEnvironment",
