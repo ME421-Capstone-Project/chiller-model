@@ -395,7 +395,7 @@ def plot_example6_large_scale() -> None:
     wind = WindVector(velocity_m_per_s=(3.0, 1.0), ambient_temp_k=303.15)
     model = GaussianPlumeModel(1.5)
     env = SimulationEnvironment(array, wind, model)
-    total_load = 500.0  # Fixed cooling load (kW)
+    total_load = 10000.0  # Fixed cooling load (kW)
 
     n_active_range = list(range(20, 101, 10))
     works = []
@@ -411,7 +411,7 @@ def plot_example6_large_scale() -> None:
     ax.scatter(n_active_range[best_idx], works[best_idx], c="red", s=200, marker="*", zorder=5, label=f"Optimal: {n_active_range[best_idx]} chillers")
     ax.set_xlabel("Number of active chillers (of 100)")
     ax.set_ylabel("Total electrical work (kW)")
-    ax.set_title("Fixed 500 kW Load: Total Work vs. Active Chillers")
+    ax.set_title("Fixed 10,000 kW Load: Total Work vs. Active Chillers")
     ax.legend()
     ax.grid(True, alpha=0.3)
     ax.annotate("Same cooling load; fewer chillers can use less energy", xy=(0.5, 0.02), xycoords="axes fraction", ha="center", fontsize=9, style="italic")

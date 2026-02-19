@@ -317,7 +317,7 @@ Simulate a larger data center with 100 chillers:
    from src.models import GaussianPlumeModel
    from src.simulation import SimulationEnvironment, Optimizer
 
-   # 10x10 array, fixed 500 kW load
+   # 10x10 array, fixed 10,000 kW load
    array = ChillerArray.create_grid(
        rows=10, cols=10, spacing_m=5.0, base_cop=5.5,
        ages_years=np.zeros(100, dtype=np.float64),
@@ -326,7 +326,7 @@ Simulate a larger data center with 100 chillers:
    model = GaussianPlumeModel(1.5)
    env = SimulationEnvironment(array, wind, model)
 
-   total_load = 500.0  # Fixed cooling load (kW)
+   total_load = 10000.0  # Fixed cooling load (kW)
 
    # Total work for 20 to 100 active chillers (same load)
    results = []
@@ -345,19 +345,19 @@ Simulate a larger data center with 100 chillers:
 
 .. code-block:: text
 
-   20 chillers: 92.43 kW
-   30 chillers: 95.33 kW
-   40 chillers: 98.39 kW
-   50 chillers: 101.75 kW
-   60 chillers: 105.30 kW
-   70 chillers: 109.00 kW
-   80 chillers: 112.87 kW
-   90 chillers: 116.96 kW
-   100 chillers: 121.31 kW
+   20 chillers: 1848.68 kW
+   30 chillers: 1906.55 kW
+   40 chillers: 1967.86 kW
+   50 chillers: 2034.98 kW
+   60 chillers: 2106.07 kW
+   70 chillers: 2179.93 kW
+   80 chillers: 2257.30 kW
+   90 chillers: 2339.11 kW
+   100 chillers: 2426.17 kW
 
-   Optimal configuration: 20 chillers at 92.43 kW
+   Optimal configuration: 20 chillers at 1848.68 kW
 
-For a fixed 500 kW load, using only 20 optimally-selected chillers uses **24% less**
+For a fixed 10,000 kW load, using only 20 optimally-selected chillers uses **24% less**
 electrical work than running all 100 units. The "less is more" principle: fewer
 chillers can mean less thermal interference and lower total energy use.
 
