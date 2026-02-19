@@ -181,3 +181,106 @@ class TestChillerArrayRandom:
                 num_chillers=0,
                 area_size_m=(100.0, 100.0),
             )
+
+
+class TestChillerArrayAge:
+    """Tests for chiller age parameter and COP degradation."""
+
+    def test_manual_ages_assignment(self) -> None:
+        """Manually assigned ages should be preserved."""
+        positions = np.array([[0, 0], [10, 0]], dtype=np.float64)
+        ages = np.array([0.0, 5.0], dtype=np.float64)
+        array = ChillerArray(
+            positions_m=positions,
+            base_cop=5.0,
+            alpha=0.7,
+            ages_years=ages,
+        )
+        np.testing.assert_allclose(array.ages_years, [0.0, 5.0])
+
+    def test_ages_shape_must_match_positions(self) -> None:
+        """ages_years must have same length as positions."""
+        positions = np.array([[0, 0], [10, 0], [20, 0]], dtype=np.float64)
+        ages_wrong = np.array([0.0, 1.0], dtype=np.float64)  # length 2, need 3
+
+        with pytest.raises(ValueError, match="shape"):
+            ChillerArray(
+                positions_m=positions,
+                base_cop=5.0,
+                ages_years=ages_wrong,
+            )
+
+    def test_ages_must_be_non_negative(self) -> None:
+        """ages_years must be non-negative."""
+        positions = np.array([[0, 0]], dtype=np.float64)
+        ages_negative = np.array([-1.0], dtype=np.float64)
+
+        with pytest.raises(ValueError, match="non-negative"):
+            ChillerArray(
+                positions_m=positions,
+                base_cop=5.0,
+                ages_years=ages_negative,
+            )
+
+    def test_random_ages_when_not_provided(self) -> None:
+        """When ages not provided, they are random uniform [0, 20]."""
+        positions = np.array([[0, 0], [10, 0]], dtype=np.float64)
+        array = ChillerArray(positions_m=positions, base_cop=5.0)
+
+        assert array.ages_years.shape == (2,)
+        assert np.all(array.ages_years >= 0)
+        assert np.all(array.ages_years <= 20.0)
+
+    def test_create_grid_with_manual_ages(self) -> None:
+        """create_grid accepts manual ages."""
+        array = ChillerArray.create_grid(
+            rows=2,
+            cols=2,
+            spacing_m=10.0,
+            ages_years=np.array([0.0, 1.0, 2.0, 3.0], dtype=np.float64),
+        )
+        np.testing.assert_allclose(array.ages_years, [0.0, 1.0, 2.0, 3.0])
+
+    def test_create_grid_random_ages_reproducible_with_seed(self) -> None:
+        """create_grid with seed produces reproducible random ages."""
+        array1 = ChillerArray.create_grid(
+            rows=2, cols=2, spacing_m=10.0, seed=42
+        )
+        array2 = ChillerArray.create_grid(
+            rows=2, cols=2, spacing_m=10.0, seed=42
+        )
+        np.testing.assert_allclose(array1.ages_years, array2.ages_years)
+
+    def test_create_random_ages_reproducible_with_seed(self) -> None:
+        """create_random produces reproducible ages with same seed."""
+        array1 = ChillerArray.create_random(
+            num_chillers=5,
+            area_size_m=(100.0, 100.0),
+            seed=123,
+        )
+        array2 = ChillerArray.create_random(
+            num_chillers=5,
+            area_size_m=(100.0, 100.0),
+            seed=123,
+        )
+        np.testing.assert_allclose(array1.ages_years, array2.ages_years)
+
+    def test_cop_age_factors_property(self) -> None:
+        """cop_age_factors returns correct multipliers."""
+        positions = np.array([[0, 0]], dtype=np.float64)
+        # Age 0: factor 1.0; Age 1: factor 0.8 (from constants)
+        array = ChillerArray(
+            positions_m=positions,
+            base_cop=5.0,
+            ages_years=np.array([0.0], dtype=np.float64),
+        )
+        factors = array.cop_age_factors
+        assert factors[0] == pytest.approx(1.0)
+
+        array_1yr = ChillerArray(
+            positions_m=positions,
+            base_cop=5.0,
+            ages_years=np.array([1.0], dtype=np.float64),
+        )
+        factors_1yr = array_1yr.cop_age_factors
+        assert factors_1yr[0] == pytest.approx(0.8)

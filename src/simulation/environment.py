@@ -241,12 +241,15 @@ class SimulationEnvironment:
 
         # =====================================================================
         # Compute degraded COP (vectorized)
-        # COP_m = base_cop / (1 + alpha * temp_rise[m])
+        # COP_m = (base_cop * age_factor[m]) / (1 + alpha * temp_rise[m])
+        # Age factor decays exponentially from 100% at age=0 to 80% at age=1yr.
         # Shape: (N,)
         # =====================================================================
         base_cop = self.chiller_array.base_cop
         alpha = self.chiller_array.alpha
-        cop_array = base_cop / (1.0 + alpha * temp_rise)
+        age_factors = self.chiller_array.cop_age_factors
+        base_cop_per_unit = base_cop * age_factors
+        cop_array = base_cop_per_unit / (1.0 + alpha * temp_rise)
 
         # =====================================================================
         # Total work = sum(load / COP) for active chillers only
@@ -291,7 +294,9 @@ class SimulationEnvironment:
 
         active_float = active_mask.astype(np.float64)
         temp_rise = np.dot(active_float, self._interaction_matrix[:, position_idx])
-        return self.chiller_array.base_cop / (1.0 + self.chiller_array.alpha * temp_rise)
+        age_factor = self.chiller_array.cop_age_factors[position_idx]
+        base_cop_aged = self.chiller_array.base_cop * age_factor
+        return base_cop_aged / (1.0 + self.chiller_array.alpha * temp_rise)
 
     def get_thermal_impact_on(
         self,

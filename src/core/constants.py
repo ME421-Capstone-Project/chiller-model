@@ -80,3 +80,86 @@ MAX_REALISTIC_TEMP_K: float = 350.0
 
 Above this, standard chiller operation is not feasible.
 """
+
+# =============================================================================
+# Chiller Age and COP Degradation
+# =============================================================================
+
+AGE_MIN_YEARS: float = 0.0
+"""Minimum chiller age in years for random assignment.
+
+Used when ages are not manually specified at simulation start.
+"""
+
+AGE_MAX_YEARS: float = 20.0
+"""Maximum chiller age in years for random assignment.
+
+Used when ages are not manually specified at simulation start.
+"""
+
+COP_AGE_FRACTION_AT_1_YEAR: float = 0.8
+"""COP fraction remaining after 1 year of operation.
+
+COP decays exponentially with age. At age=0, factor=1.0 (100%).
+At age=1 year, factor=0.8 (80%). Change this to adjust degradation rate.
+
+Reference: Typical chiller efficiency loss 1-2% per year (ASHRAE).
+"""
+
+COP_AGE_DECAY_TIMESCALE_YEARS: float = 1.0
+"""Timescale in years for COP age degradation.
+
+Time over which COP decays from 100% to COP_AGE_FRACTION_AT_1_YEAR.
+Change this to stretch or compress the decay curve.
+"""
+
+
+def compute_cop_age_factor(age_years: float) -> float:
+    """Compute COP multiplier from chiller age (exponential decay).
+
+    COP decays from 100% at age=0 to COP_AGE_FRACTION_AT_1_YEAR at age=1 year.
+    Formula: factor = exp(-decay_rate * age_years) where decay_rate is derived
+    from the constants above.
+
+    Parameters
+    ----------
+    age_years : float
+        Chiller age in years (must be >= 0).
+
+    Returns
+    -------
+    float
+        COP multiplier in [0, 1]. Multiply base_cop by this for age-degraded COP.
+
+    Notes
+    -----
+    All numerical constants (fraction at 1 year, timescale) are in this module.
+    """
+    import math
+
+    if age_years <= 0:
+        return 1.0
+    decay_rate = -math.log(COP_AGE_FRACTION_AT_1_YEAR) / COP_AGE_DECAY_TIMESCALE_YEARS
+    return math.exp(-decay_rate * age_years)
+
+
+def compute_cop_age_factors_vectorized(ages_years: "np.ndarray") -> "np.ndarray":
+    """Compute COP multipliers for an array of chiller ages (vectorized).
+
+    Uses NumPy for performance. Same formula as compute_cop_age_factor.
+
+    Parameters
+    ----------
+    ages_years : np.ndarray
+        Chiller ages in years, shape (N,). Values < 0 are treated as 0.
+
+    Returns
+    -------
+    np.ndarray
+        COP multipliers, shape (N,). Multiply base_cop element-wise for age-degraded COP.
+    """
+    import numpy as np
+
+    decay_rate = -np.log(COP_AGE_FRACTION_AT_1_YEAR) / COP_AGE_DECAY_TIMESCALE_YEARS
+    ages_clipped = np.maximum(ages_years, 0.0)
+    return np.exp(-decay_rate * ages_clipped)
