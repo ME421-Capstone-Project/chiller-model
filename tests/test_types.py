@@ -67,3 +67,50 @@ def test_initial_state_stores_fields():
     )
     assert state.active_mask[0] is np.bool_(True)
     assert state.time_since_start_hours[2] == 0.5
+from chiller_sim.layout.grid import ChillerGrid
+from chiller_sim.layout.wind import WindConditions
+
+
+def test_chiller_grid_from_regular_grid():
+    grid = ChillerGrid.create_grid(rows=2, cols=3, spacing_m=10.0, base_cop=5.0, alpha=0.7)
+    assert grid.positions_m.shape == (6, 2)
+    assert grid.base_cop == 5.0
+    assert grid.alpha == 0.7
+    assert len(grid.ages_years) == 6
+
+
+def test_chiller_grid_seed_reproducible():
+    g1 = ChillerGrid.create_grid(rows=2, cols=2, spacing_m=5.0, base_cop=4.0, seed=42)
+    g2 = ChillerGrid.create_grid(rows=2, cols=2, spacing_m=5.0, base_cop=4.0, seed=42)
+    np.testing.assert_array_equal(g1.ages_years, g2.ages_years)
+
+
+def test_chiller_grid_explicit_ages():
+    ages = np.array([1.0, 2.0, 3.0, 4.0])
+    grid = ChillerGrid.create_grid(rows=2, cols=2, spacing_m=5.0, base_cop=4.0, ages_years=ages)
+    np.testing.assert_array_equal(grid.ages_years, ages)
+
+
+def test_chiller_grid_num_chillers():
+    grid = ChillerGrid.create_grid(rows=3, cols=4, spacing_m=10.0, base_cop=4.0)
+    assert grid.num_chillers == 12
+
+
+def test_wind_conditions_stores_fields():
+    wind = WindConditions(speed_m_per_s=3.0, angle_deg=45.0)
+    assert wind.speed_m_per_s == 3.0
+    assert wind.angle_deg == 45.0
+
+
+def test_wind_conditions_to_unit_vector():
+    # Due east (angle=0): unit vector = (1, 0)
+    wind = WindConditions(speed_m_per_s=5.0, angle_deg=0.0)
+    uv = wind.unit_vector
+    assert abs(uv[0] - 1.0) < 1e-9
+    assert abs(uv[1]) < 1e-9
+
+    # Due north (angle=90): unit vector = (0, 1)
+    wind_n = WindConditions(speed_m_per_s=5.0, angle_deg=90.0)
+    uv_n = wind_n.unit_vector
+    assert abs(uv_n[0]) < 1e-9
+    assert abs(uv_n[1] - 1.0) < 1e-9
