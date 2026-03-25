@@ -28,6 +28,7 @@ src/chiller_sim/
         cop.py               # CopFn Protocol + default implementation
         degradation.py       # DegradationFn Protocol + default implementation
         ramp.py              # RampFn Protocol + default implementation
+        load.py              # LoadFn Protocol (no default — user must supply)
     simulation/
         __init__.py
         builder.py           # SimulatorBuilder (returned by Simulator())
@@ -47,20 +48,23 @@ from chiller_sim import OptimizeResult, SimulationResult, StepResult  # for type
 
 ### Construction (Builder Pattern)
 
-`Simulator()` returns a `SimulatorBuilder`. Calling `.build()` precomputes the N×N thermal interaction matrix.
+`Simulator()` returns a `SimulatorBuilder`. Calling `.build()` precomputes the N×N thermal interaction matrix and freezes all configuration.
 
 ```python
 sim = (Simulator()
-    .with_grid(rows=4, cols=4, spacing_m=10.0, base_cop=5.5, ages_years=None, seed=42)
+    .with_grid(rows=4, cols=4, spacing_m=10.0, base_cop=5.5, alpha=0.7,
+               ages_years=None, seed=42)
     .with_wind(speed_m_per_s=3.0, angle_deg=0.0, ambient_temp_k=298.15)
     .with_dispersion(coeff=1.2)               # optional, default 1.2
     .with_load_fn(my_load_fn)                  # load_fn(time_hours) -> float
     .with_cop_fn(my_cop_fn)                    # optional, uses default if omitted
-    .with_degradation_fn(my_deg_fn)            # optional
-    .with_ramp_fn(my_ramp_fn)                  # optional
+    .with_degradation_fn(my_deg_fn)            # optional, uses default if omitted
+    .with_ramp_fn(my_ramp_fn)                  # optional, uses default if omitted
     .with_switching_threshold(min_savings_kw=10.0)  # optional, default 0.0
     .build())
 ```
+
+**Seed persistence:** The `seed` passed to `.with_grid()` is stored on the builder. When `.build()` is called (including rebuilds after `.with_wind()` etc.), the same seed is reused so ages are not re-randomized on rebuild. If `ages_years` is supplied explicitly, `seed` is ignored.
 
 To update a live simulator (e.g. new wind conditions), chain from the existing instance and rebuild:
 
@@ -86,6 +90,20 @@ RampFn:        (time_since_start_hours: float) -> float
 LoadFn:        (time_hours: float) -> float
 ```
 
+`LoadFn` has no default — the user must always supply one via `.with_load_fn()`.
+
+### Plugin Composition Order
+
+The `Simulator` applies the three physics plugins in this fixed sequence for each chiller at each time step:
+
+```
+effective_cop[i] = cop_fn(base_cop[i], temp_rise_k[i])
+                   × degradation_fn(age_years[i])
+                   × ramp_fn(time_since_start_hours[i])
+```
+
+`cop_fn` handles the thermal interaction penalty. `degradation_fn` handles age-related COP loss. `ramp_fn` handles startup ramp-up. Each is applied independently and multiplicatively. Custom implementations replace only the function they override; the others use their defaults.
+
 ### Real-Time Optimization
 
 Single time-point query. Uses `load_fn(time_hours)` unless `load_kw` is passed explicitly.
@@ -95,7 +113,7 @@ result = sim.optimize(time_hours=8.0)
 result = sim.optimize(time_hours=8.0, load_kw=500.0)  # explicit override
 ```
 
-The `Simulator` maintains internal chiller state between `optimize()` calls — which chillers are running and how long — so ramp factors and switching thresholds apply correctly across sequential calls.
+The `Simulator` maintains internal chiller state between `optimize()` calls — which chillers are running and for how long — so ramp factors and switching thresholds apply correctly across sequential calls.
 
 ### Dynamic Simulation
 
@@ -113,6 +131,8 @@ result.schedule[:, 3]     # chiller 3's on/off history
 result.times_hours        # time of each decision
 ```
 
+**State reset:** Both `stream()` and `simulate()` reset all internal chiller state (startup clocks, active set) to "all chillers off, zero elapsed time" at the start of each call. This ensures identical schedules for the same inputs regardless of prior `optimize()` calls.
+
 `stream()` and `simulate()` produce identical schedules for the same inputs.
 
 ### Result Types
@@ -125,12 +145,15 @@ OptimizeResult:
     savings_fraction: float          # (baseline - optimal) / baseline
     cop_array: NDArray[float]        # per-chiller effective COP
     temp_rise_array: NDArray[float]  # per-chiller inlet temp rise (K)
+    load_kw: float                   # load used for this optimization
 
 StepResult:
     time_hours: float
     load_kw: float                   # load used at this step
     active_mask: NDArray[bool]
     total_work_kw: float
+    baseline_work_kw: float          # work if all chillers were on at this step
+    savings_fraction: float          # (baseline - total_work) / baseline
     cop_array: NDArray[float]
 
 SimulationResult:
@@ -138,36 +161,90 @@ SimulationResult:
     loads_kw: NDArray[float]         # shape (n_steps,)
     schedule: NDArray[bool]          # shape (n_steps, n_chillers)
     total_work_kw: NDArray[float]    # shape (n_steps,)
+    baseline_work_kw: NDArray[float] # shape (n_steps,)
+    savings_fraction: NDArray[float] # shape (n_steps,)
     cop_arrays: NDArray[float]       # shape (n_steps, n_chillers)
+```
+
+---
+
+## Data Types
+
+### ChillerGrid
+
+Frozen dataclass holding the physical layout of chillers:
+
+```python
+ChillerGrid:
+    positions_m: NDArray[float]   # shape (n_chillers, 2), (x, y) in metres
+    base_cop: float               # rated COP for all chillers
+    alpha: float                  # temperature sensitivity coefficient (default 0.7)
+    ages_years: NDArray[float]    # shape (n_chillers,), per-chiller age
+```
+
+Created via the builder (`.with_grid()`), not directly by users.
+
+### WindConditions
+
+Frozen dataclass:
+
+```python
+WindConditions:
+    speed_m_per_s: float
+    angle_deg: float              # direction in degrees, CCW from east
+    ambient_temp_k: float
 ```
 
 ---
 
 ## State-Aware Optimizer (Level 3)
 
-The optimizer is time-aware and maintains state across calls:
+The optimizer is time-aware and maintains state across `optimize()` calls within a session. `stream()` and `simulate()` reset this state at the start of each call.
 
-1. **Startup tracking:** Each chiller has an internal clock (`time_since_start`). When a chiller is activated, its clock starts. The `RampFn` uses this to apply ramp-up penalties during the startup window.
-2. **Switching threshold:** A chiller that is currently running will not be deactivated unless doing so saves at least `min_savings_kw`. This prevents unnecessary cycling when load is near a decision boundary.
-3. **Greedy algorithm:** Starting from the prior active set (not all-on), greedily add or remove chillers to minimize total work subject to the switching threshold.
+**Baseline computation:** Before the greedy loop, the baseline is computed by evaluating all N chillers as active with steady-state ramp (all `ramp_fn` values saturated at 1.0, regardless of current startup clocks). This gives a consistent, comparable reference across calls. This baseline is stored in `baseline_work_kw` on the result.
+
+**Algorithm:**
+
+1. Initialize the prior active set. On the first `optimize()` call, start from all-on (steady-state ramp). On subsequent calls, start from the active set left by the previous call with their current startup clocks.
+2. Evaluate all single-chiller toggles (activate an off chiller, or deactivate an on chiller).
+3. Apply the `min_savings_kw` threshold symmetrically: a toggle is only eligible if it reduces total work by at least `min_savings_kw`. This prevents switching in either direction for marginal gains.
+4. For activation candidates: evaluate using `ramp_fn(0.0)` (as if the chiller just started). Once committed, the chiller's startup clock begins and advances each subsequent call.
+5. Commit the best eligible toggle if it reduces total work.
+6. Repeat from step 2 until no eligible improving toggle remains.
+
+**Ramp state on first call:** On the first `optimize()` call, all chillers in the initial all-on set are assumed to be at steady state (startup clock = infinity, `ramp_fn` = 1.0). This ensures the baseline is meaningful and avoids a degenerate first result.
 
 ---
 
 ## Physics
 
-The thermal interaction model is unchanged from the original:
+The thermal interaction model is unchanged from the original. The N×N interaction matrix `A` is precomputed once at `.build()` time:
 
 ```
-A[k,m] = exp(-lat_km² / (σ · (long_km + 1))) / (long_km + 1)   if long_km > 0
-        = 0                                                         otherwise
+A[k, m] = exp(-lateral² / (σ · (longitudinal + 1))) / (longitudinal + 1)   if longitudinal > 0
+         = 0                                                                  otherwise
 ```
 
-Where `long_km` is the along-wind distance and `lat_km` is the cross-wind distance from chiller k to chiller m. Diagonal entries are zero.
+Where `longitudinal` is the along-wind distance (metres) and `lateral` is the cross-wind distance (metres) from chiller k to chiller m. Diagonal entries are zero (a chiller does not interfere with itself).
 
 Default COP function:
 ```
-effective_cop = (base_cop × degradation(age)) / (1 + α × temp_rise_k) × ramp(t)
+cop_fn(base_cop, temp_rise_k) = base_cop / (1 + alpha × temp_rise_k)
 ```
+
+`alpha` is the temperature sensitivity coefficient, configurable via `.with_grid(alpha=0.7)`. Default value: `0.7`.
+
+Default degradation function (exponential decay):
+```
+degradation_fn(age_years) = exp(-rate × age_years)
+```
+Where `rate` is chosen so that a 1-year-old chiller retains 80% of its rated COP.
+
+Default ramp function (linear ramp):
+```
+ramp_fn(time_since_start_hours) = min(1.0, time_since_start_hours / startup_time_hours)
+```
+Default `startup_time_hours = 0.25`.
 
 ---
 
@@ -181,6 +258,7 @@ Tests are behavior-oriented — they validate outcomes, not internal structure. 
 - Downwind chillers have higher inlet temperatures than upwind chillers
 - Chiller state (startup clock) persists across sequential `optimize()` calls
 - Savings fraction is in [0, 1]
+- A new `simulate()` call produces the same schedule regardless of prior `optimize()` calls (state reset)
 
 ### 2. Physics Plugins
 - Custom `cop_fn` produces different work output than the default
@@ -191,11 +269,11 @@ Tests are behavior-oriented — they validate outcomes, not internal structure. 
 ### 3. Dynamic Simulation
 - `simulate()` returns correct number of steps for given duration and time step
 - `result.schedule` has shape `(n_steps, n_chillers)`
-- A chiller activated at step N carries startup state into step N+1
-- `stream()` and `simulate()` produce identical schedules
+- A chiller activated at step N carries startup state into step N+1 within the same run
+- `stream()` and `simulate()` produce identical schedules for the same inputs
 - Switching threshold prevents cycling near load boundary
 
-**Out of scope:** Internal class construction, Pydantic field validation, NumPy matrix math — these are implementation details.
+**Out of scope:** Internal class construction, field validation, NumPy matrix math — these are implementation details.
 
 ---
 
@@ -205,8 +283,10 @@ Tests are behavior-oriented — they validate outcomes, not internal structure. 
 |---|---|
 | 5 objects to wire before running | 1 builder chain + `.build()` |
 | `BaseInteractionModel` referenced but missing | Protocols defined and present |
-| `ChillerArray` claims immutability but isn't | `ChillerGrid` is a simple frozen dataclass |
+| `ChillerArray` claims immutability but isn't | `ChillerGrid` is a frozen dataclass |
 | Optimizer restarts from all-on each step | Optimizer starts from prior active set |
 | No switching threshold | Configurable `min_savings_kw` |
-| `DataCenter` untested | Load is a plain function — tested via plugin tests |
-| Doc references `result.load_array` (wrong) | `load_kw: float` in `StepResult` |
+| `DataCenter` untested | Load is a plain `LoadFn` callable — tested via plugin tests |
+| Doc references `result.load_array` (wrong) | `load_kw: float` in all result types |
+| `alpha` buried in `ChillerArray` | Explicit in `.with_grid(alpha=0.7)` |
+| Random ages non-reproducible at direct construction | `seed` stored on builder, reused on rebuild |
