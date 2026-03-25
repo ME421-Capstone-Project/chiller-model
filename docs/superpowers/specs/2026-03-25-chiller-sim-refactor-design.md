@@ -17,7 +17,7 @@ One package with three sub-folders for internal organization. All public symbols
 
 ```
 src/chiller_sim/
-    __init__.py              # public API: Simulator, OptimizeResult, SimulationResult, StepResult
+    __init__.py              # public API: Simulator, OptimizeResult, SimulationResult
     layout/
         __init__.py
         grid.py              # ChillerGrid
@@ -33,13 +33,13 @@ src/chiller_sim/
         __init__.py
         builder.py           # SimulatorBuilder (returned by Simulator())
         simulator.py         # Simulator
-        results.py           # OptimizeResult, StepResult, SimulationResult
+        results.py           # OptimizeResult, SimulationResult
 ```
 
 **Import convention:**
 ```python
 from chiller_sim import Simulator
-from chiller_sim import OptimizeResult, SimulationResult, StepResult  # for type hints
+from chiller_sim import OptimizeResult, SimulationResult  # for type hints
 ```
 
 ---
@@ -137,33 +137,28 @@ result.times_hours        # time of each decision
 
 ### Result Types
 
+`sim.optimize()` and `sim.stream()` both return `OptimizeResult`. `SimulationResult` is defined in terms of `OptimizeResult` — no data duplication.
+
 ```python
 OptimizeResult:
+    time_hours: float
+    load_kw: float                   # load used for this optimization
     active_mask: NDArray[bool]       # which chillers are on
     total_work_kw: float             # total electrical work
-    baseline_work_kw: float          # work if all chillers were on
-    savings_fraction: float          # (baseline - optimal) / baseline
+    baseline_work_kw: float          # work if all chillers were on (steady-state ramp)
+    savings_fraction: float          # (baseline - total_work) / baseline
     cop_array: NDArray[float]        # per-chiller effective COP
     temp_rise_array: NDArray[float]  # per-chiller inlet temp rise (K)
-    load_kw: float                   # load used for this optimization
-
-StepResult:
-    time_hours: float
-    load_kw: float                   # load used at this step
-    active_mask: NDArray[bool]
-    total_work_kw: float
-    baseline_work_kw: float          # work if all chillers were on at this step
-    savings_fraction: float          # (baseline - total_work) / baseline
-    cop_array: NDArray[float]
 
 SimulationResult:
-    times_hours: NDArray[float]      # shape (n_steps,)
-    loads_kw: NDArray[float]         # shape (n_steps,)
-    schedule: NDArray[bool]          # shape (n_steps, n_chillers)
-    total_work_kw: NDArray[float]    # shape (n_steps,)
-    baseline_work_kw: NDArray[float] # shape (n_steps,)
-    savings_fraction: NDArray[float] # shape (n_steps,)
-    cop_arrays: NDArray[float]       # shape (n_steps, n_chillers)
+    steps: list[OptimizeResult]      # one per time step, in order
+
+    # convenience properties (derived from steps, no data duplication)
+    @property schedule        -> NDArray[bool]   # shape (n_steps, n_chillers)
+    @property total_work_kw   -> NDArray[float]  # shape (n_steps,)
+    @property loads_kw        -> NDArray[float]  # shape (n_steps,)
+    @property savings_fraction -> NDArray[float] # shape (n_steps,)
+    @property cop_arrays      -> NDArray[float]  # shape (n_steps, n_chillers)
 ```
 
 ---
