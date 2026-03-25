@@ -21,6 +21,8 @@ if TYPE_CHECKING:
 
 
 class Simulator:
+    """Chiller array simulator that optimises active-chiller selection each time step."""
+
     def __init__(
         self,
         builder: SimulatorBuilder,
@@ -36,6 +38,7 @@ class Simulator:
         ambient_temp_fn: AmbientTempFn | None,
         min_savings_kw: float,
     ) -> None:
+        """Initialise the simulator and precompute the interaction matrix."""
         self._builder = builder
         self._grid = grid
         self._model = model
@@ -59,15 +62,19 @@ class Simulator:
 
     # Builder re-entry: allow sim.with_wind(...).build()
     def with_wind(self, speed_m_per_s: float, angle_deg: float) -> SimulatorBuilder:
+        """Delegate to builder for re-configuration with new static wind."""
         return self._builder.with_wind(speed_m_per_s=speed_m_per_s, angle_deg=angle_deg)
 
     def with_wind_fn(self, fn: WindFn) -> SimulatorBuilder:
+        """Delegate to builder for re-configuration with a time-varying wind plugin."""
         return self._builder.with_wind_fn(fn)
 
     def with_ambient_temp(self, temp_k: float) -> SimulatorBuilder:
+        """Delegate to builder for re-configuration with a new constant ambient temperature."""
         return self._builder.with_ambient_temp(temp_k=temp_k)
 
     def with_ambient_temp_fn(self, fn: AmbientTempFn) -> SimulatorBuilder:
+        """Delegate to builder for re-configuration with a time-varying ambient temperature."""
         return self._builder.with_ambient_temp_fn(fn)
 
     def _get_ambient_temp(self, time_hours: float) -> float:
@@ -114,12 +121,14 @@ class Simulator:
         )
         deg_factors = np.array([self._degradation_fn(a) for a in self._grid.ages_years])
 
-        cop_array = np.array([
-            self._cop_fn(self._grid.base_cop, temp_rise[i], ambient_temp_k)
-            * deg_factors[i]
-            * ramp_factors[i]
-            for i in range(n)
-        ])
+        cop_array = np.array(
+            [
+                self._cop_fn(self._grid.base_cop, temp_rise[i], ambient_temp_k)
+                * deg_factors[i]
+                * ramp_factors[i]
+                for i in range(n)
+            ]
+        )
         cop_array = np.maximum(cop_array, 1e-6)
 
         total_work = float(np.sum(load_per_unit / cop_array[active_mask]))
@@ -145,7 +154,10 @@ class Simulator:
             time_since_start = self._time_since_start.copy()
 
         current_work, _, _ = self._evaluate_work(
-            active_mask, time_since_start, load_kw, ambient_temp_k,
+            active_mask,
+            time_since_start,
+            load_kw,
+            ambient_temp_k,
             use_steady_state_ramp=is_first,
         )
 
@@ -166,7 +178,10 @@ class Simulator:
                 # deactivating: time value irrelevant for inactive chillers
 
                 candidate_work, _, _ = self._evaluate_work(
-                    candidate_mask, candidate_times, load_kw, ambient_temp_k,
+                    candidate_mask,
+                    candidate_times,
+                    load_kw,
+                    ambient_temp_k,
                     use_steady_state_ramp=is_first,
                 )
                 savings = current_work - candidate_work
@@ -189,6 +204,7 @@ class Simulator:
         time_hours: float,
         load_kw: float | None = None,
     ) -> OptimizeResult:
+        """Run one greedy optimization step and return detailed results."""
         self._update_wind_if_changed(time_hours)
         ambient_temp_k = self._get_ambient_temp(time_hours)
         resolved_load = load_kw if load_kw is not None else self._load_fn(time_hours)
@@ -244,6 +260,7 @@ class Simulator:
         initial_time_hours: float = 0.0,
         initial_state: InitialState | None = None,
     ) -> Generator[OptimizeResult, None, None]:
+        """Yield one OptimizeResult per time step over the requested duration."""
         self._reset_state(initial_state)
         t = initial_time_hours
         while t < initial_time_hours + duration_hours - 1e-9:
@@ -261,10 +278,13 @@ class Simulator:
         initial_time_hours: float = 0.0,
         initial_state: InitialState | None = None,
     ) -> SimulationResult:
-        steps = list(self.stream(
-            duration_hours=duration_hours,
-            time_step_hours=time_step_hours,
-            initial_time_hours=initial_time_hours,
-            initial_state=initial_state,
-        ))
+        """Run the full simulation and return all steps collected into a SimulationResult."""
+        steps = list(
+            self.stream(
+                duration_hours=duration_hours,
+                time_step_hours=time_step_hours,
+                initial_time_hours=initial_time_hours,
+                initial_state=initial_state,
+            )
+        )
         return SimulationResult(steps=steps)

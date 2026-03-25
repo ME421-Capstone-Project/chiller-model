@@ -8,13 +8,16 @@ from numpy.typing import NDArray
 
 @dataclass(frozen=True)
 class ChillerGrid:
-    positions_m: NDArray[np.float64]   # shape (n_chillers, 2)
+    """Immutable description of a chiller array layout and its ageing state."""
+
+    positions_m: NDArray[np.float64]  # shape (n_chillers, 2)
     base_cop: float
     alpha: float
-    ages_years: NDArray[np.float64]    # shape (n_chillers,)
+    ages_years: NDArray[np.float64]  # shape (n_chillers,)
 
     @property
     def num_chillers(self) -> int:
+        """Return the total number of chillers in the grid."""
         return len(self.positions_m)
 
     @classmethod
@@ -28,6 +31,7 @@ class ChillerGrid:
         ages_years: NDArray[np.float64] | None = None,
         seed: int | None = None,
     ) -> ChillerGrid:
+        """Build a regular rectangular chiller grid with optional random ages."""
         xs = np.arange(cols) * spacing_m
         ys = np.arange(rows) * spacing_m
         xx, yy = np.meshgrid(xs, ys)

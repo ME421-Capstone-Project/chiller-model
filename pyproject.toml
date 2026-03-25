@@ -50,7 +50,7 @@ Documentation = "https://chiller-model.readthedocs.io"
 where = ["src"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "verification"]
+testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"

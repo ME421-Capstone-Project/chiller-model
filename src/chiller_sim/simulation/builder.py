@@ -19,7 +19,10 @@ if TYPE_CHECKING:
 
 
 class SimulatorBuilder:
+    """Fluent builder that assembles a Simulator from its constituent plugins."""
+
     def __init__(self) -> None:
+        """Initialise builder with all fields unset and sensible numeric defaults."""
         self._grid: ChillerGrid | None = None
         self._grid_seed: int | None = None
         self._wind: WindConditions | None = None
@@ -43,55 +46,71 @@ class SimulatorBuilder:
         ages_years: NDArray[np.float64] | None = None,
         seed: int | None = None,
     ) -> SimulatorBuilder:
+        """Set the chiller grid layout."""
         self._grid_seed = seed
         self._grid = ChillerGrid.create_grid(
-            rows=rows, cols=cols, spacing_m=spacing_m,
-            base_cop=base_cop, alpha=alpha,
-            ages_years=ages_years, seed=seed,
+            rows=rows,
+            cols=cols,
+            spacing_m=spacing_m,
+            base_cop=base_cop,
+            alpha=alpha,
+            ages_years=ages_years,
+            seed=seed,
         )
         return self
 
     def with_wind(self, speed_m_per_s: float, angle_deg: float) -> SimulatorBuilder:
+        """Set static wind conditions (speed and direction)."""
         self._wind = WindConditions(speed_m_per_s=speed_m_per_s, angle_deg=angle_deg)
         return self
 
     def with_wind_fn(self, fn: WindFn) -> SimulatorBuilder:
+        """Set a time-varying wind plugin; overrides any static wind."""
         self._wind_fn = fn
         return self
 
     def with_ambient_temp(self, temp_k: float) -> SimulatorBuilder:
+        """Set a constant ambient temperature in Kelvin."""
         self._ambient_temp_k = temp_k
         return self
 
     def with_ambient_temp_fn(self, fn: AmbientTempFn) -> SimulatorBuilder:
+        """Set a time-varying ambient temperature plugin."""
         self._ambient_temp_fn = fn
         return self
 
     def with_dispersion(self, coeff: float) -> SimulatorBuilder:
+        """Override the Gaussian plume dispersion coefficient."""
         self._dispersion_coeff = coeff
         return self
 
     def with_load_fn(self, fn: LoadFn) -> SimulatorBuilder:
+        """Set the facility load profile plugin."""
         self._load_fn = fn
         return self
 
     def with_cop_fn(self, fn: CopFn) -> SimulatorBuilder:
+        """Override the default COP computation plugin."""
         self._cop_fn = fn
         return self
 
     def with_degradation_fn(self, fn: DegradationFn) -> SimulatorBuilder:
+        """Override the default age-based COP degradation plugin."""
         self._degradation_fn = fn
         return self
 
     def with_ramp_fn(self, fn: RampFn) -> SimulatorBuilder:
+        """Override the default startup ramp plugin."""
         self._ramp_fn = fn
         return self
 
     def with_switching_threshold(self, min_savings_kw: float) -> SimulatorBuilder:
+        """Set the minimum savings (kW) required to switch chiller on/off."""
         self._min_savings_kw = min_savings_kw
         return self
 
     def build(self) -> Simulator:
+        """Validate configuration and construct the Simulator."""
         from chiller_sim.simulation.simulator import Simulator
 
         if self._grid is None:
@@ -106,12 +125,16 @@ class SimulatorBuilder:
 
         # Resolve defaults
         cop_fn = self._cop_fn if self._cop_fn is not None else default_cop_fn(self._grid.alpha)
-        deg_fn = self._degradation_fn if self._degradation_fn is not None else default_degradation_fn
+        deg_fn = (
+            self._degradation_fn if self._degradation_fn is not None else default_degradation_fn
+        )
         ramp_fn = self._ramp_fn if self._ramp_fn is not None else default_ramp_fn
 
         # Build initial wind conditions (required for matrix precomputation)
         if self._wind is None and self._wind_fn is None:
-            raise ValueError("wind is required — call .with_wind() or .with_wind_fn() before .build()")
+            raise ValueError(
+                "wind is required — call .with_wind() or .with_wind_fn() before .build()"
+            )
         initial_wind = self._wind or WindConditions(*self._wind_fn(0.0))
 
         model = GaussianPlumeModel(dispersion_coeff=self._dispersion_coeff)
