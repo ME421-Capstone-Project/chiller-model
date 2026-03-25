@@ -21,7 +21,7 @@ src/chiller_sim/
     layout/
         __init__.py
         grid.py              # ChillerGrid
-        wind.py              # WindConditions
+        wind.py              # WindConditions, WindFn Protocol
     physics/
         __init__.py
         gaussian_plume.py    # GaussianPlumeModel
@@ -29,6 +29,7 @@ src/chiller_sim/
         degradation.py       # DegradationFn Protocol + default implementation
         ramp.py              # RampFn Protocol + default implementation
         load.py              # LoadFn Protocol (no default — user must supply)
+        ambient_temp.py      # AmbientTempFn Protocol (no default — user must supply if time-varying)
     simulation/
         __init__.py
         builder.py           # SimulatorBuilder (returned by Simulator())
@@ -54,13 +55,16 @@ from chiller_sim import OptimizeResult, SimulationResult, InitialState  # for ty
 sim = (Simulator()
     .with_grid(rows=4, cols=4, spacing_m=10.0, base_cop=5.5, alpha=0.7,
                ages_years=None, seed=42)
-    .with_wind(speed_m_per_s=3.0, angle_deg=0.0, ambient_temp_k=298.15)
-    .with_dispersion(coeff=1.2)               # optional, default 1.2
-    .with_load_fn(my_load_fn)                  # load_fn(time_hours) -> float
-    .with_cop_fn(my_cop_fn)                    # optional, uses default if omitted
-    .with_degradation_fn(my_deg_fn)            # optional, uses default if omitted
-    .with_ramp_fn(my_ramp_fn)                  # optional, uses default if omitted
-    .with_switching_threshold(min_savings_kw=10.0)  # optional, default 0.0
+    .with_wind(speed_m_per_s=3.0, angle_deg=0.0)          # fixed wind
+    .with_wind_fn(my_wind_fn)                               # time-varying, overrides fixed wind
+    .with_ambient_temp(temp_k=298.15)                       # fixed ambient temp (required if no fn)
+    .with_ambient_temp_fn(my_temp_fn)                       # time-varying, overrides fixed
+    .with_dispersion(coeff=1.2)                             # optional, default 1.2
+    .with_load_fn(my_load_fn)                               # required — no default
+    .with_cop_fn(my_cop_fn)                                 # optional, uses default if omitted
+    .with_degradation_fn(my_deg_fn)                         # optional, uses default if omitted
+    .with_ramp_fn(my_ramp_fn)                               # optional, uses default if omitted
+    .with_switching_threshold(min_savings_kw=10.0)          # optional, default 0.0
     .build())
 ```
 
@@ -77,27 +81,37 @@ sim = sim.with_wind(speed_m_per_s=5.0, angle_deg=45.0).build()
 All physics functions are plain callables — no inheritance required. Protocols define the expected signatures for type checking.
 
 ```python
-# COP: given base COP and thermal temp rise, return effective COP
-CopFn:         (base_cop: float, temp_rise_k: float) -> float
+# COP: given base COP, thermal temp rise, and ambient temp, return effective COP
+CopFn:            (base_cop: float, temp_rise_k: float, ambient_temp_k: float) -> float
 
 # Degradation: given age in years, return multiplier in [0.0, 1.0]
-DegradationFn: (age_years: float) -> float
+DegradationFn:    (age_years: float) -> float
 
 # Ramp: given time since startup in hours, return multiplier in [0.0, 1.0]
-RampFn:        (time_since_start_hours: float) -> float
+RampFn:           (time_since_start_hours: float) -> float
 
 # Load: given simulation time, return cooling load in kW
-LoadFn:        (time_hours: float) -> float
+LoadFn:           (time_hours: float) -> float
+
+# Wind: given simulation time, return (speed_m_per_s, angle_deg)
+WindFn:           (time_hours: float) -> tuple[float, float]
+
+# Ambient temperature: given simulation time, return temperature in Kelvin
+AmbientTempFn:    (time_hours: float) -> float
 ```
 
-`LoadFn` has no default. `.build()` raises `ValueError` if no `load_fn` has been supplied via `.with_load_fn()`.
+**Required at `.build()`:** `load_fn` and either `ambient_temp` or `ambient_temp_fn`. `.build()` raises `ValueError` if either is missing.
+
+**Wind:** if `wind_fn` is provided it is called at each step; otherwise the fixed wind from `.with_wind()` is used. A wind change triggers recomputation of the interaction matrix for that step.
+
+**Ambient temp:** if `ambient_temp_fn` is provided it is called at each step; otherwise the fixed value from `.with_ambient_temp()` is used. Ambient temp is passed to `cop_fn` at each step — the default `cop_fn` ignores it, but custom implementations can use it.
 
 ### Plugin Composition Order
 
 The `Simulator` applies the three physics plugins in this fixed sequence for each chiller at each time step:
 
 ```
-effective_cop[i] = cop_fn(base_cop[i], temp_rise_k[i])
+effective_cop[i] = cop_fn(base_cop[i], temp_rise_k[i], ambient_temp_k)
                    × degradation_fn(age_years[i])
                    × ramp_fn(time_since_start_hours[i])
 ```
@@ -199,13 +213,12 @@ Created via the builder (`.with_grid()`), not directly by users.
 
 ### WindConditions
 
-Frozen dataclass:
+Frozen dataclass. Ambient temperature is independent and not stored here.
 
 ```python
 WindConditions:
     speed_m_per_s: float
     angle_deg: float              # direction in degrees, CCW from east
-    ambient_temp_k: float
 ```
 
 ---
@@ -242,8 +255,10 @@ Where `longitudinal` is the along-wind distance (metres) and `lateral` is the cr
 
 Default COP function:
 ```
-cop_fn(base_cop, temp_rise_k) = base_cop / (1 + alpha × temp_rise_k)
+cop_fn(base_cop, temp_rise_k, ambient_temp_k) = base_cop / (1 + alpha × temp_rise_k)
 ```
+
+The default implementation ignores `ambient_temp_k` — it uses only the rise above ambient. Custom implementations may use absolute inlet temperature (`ambient_temp_k + temp_rise_k`) for more detailed models.
 
 `alpha` is the temperature sensitivity coefficient, configurable via `.with_grid(alpha=0.7)`. Default value: `0.7`.
 
