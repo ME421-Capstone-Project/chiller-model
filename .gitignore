@@ -234,3 +234,4 @@ __marimo__/
 # Generated figures (except doc images)
 *.png
 !docs/_static/images/*.png
+.worktrees/
