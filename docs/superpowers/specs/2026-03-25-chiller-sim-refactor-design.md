@@ -17,7 +17,7 @@ One package with three sub-folders for internal organization. All public symbols
 
 ```
 src/chiller_sim/
-    __init__.py              # public API: Simulator, OptimizeResult, SimulationResult
+    __init__.py              # public API: Simulator, OptimizeResult, SimulationResult, InitialState
     layout/
         __init__.py
         grid.py              # ChillerGrid
@@ -33,13 +33,13 @@ src/chiller_sim/
         __init__.py
         builder.py           # SimulatorBuilder (returned by Simulator())
         simulator.py         # Simulator
-        results.py           # OptimizeResult, SimulationResult
+        results.py           # OptimizeResult, SimulationResult, InitialState
 ```
 
 **Import convention:**
 ```python
 from chiller_sim import Simulator
-from chiller_sim import OptimizeResult, SimulationResult  # for type hints
+from chiller_sim import OptimizeResult, SimulationResult, InitialState  # for type hints
 ```
 
 ---
@@ -90,7 +90,7 @@ RampFn:        (time_since_start_hours: float) -> float
 LoadFn:        (time_hours: float) -> float
 ```
 
-`LoadFn` has no default — the user must always supply one via `.with_load_fn()`.
+`LoadFn` has no default. `.build()` raises `ValueError` if no `load_fn` has been supplied via `.with_load_fn()`.
 
 ### Plugin Composition Order
 
@@ -115,25 +115,43 @@ result = sim.optimize(time_hours=8.0, load_kw=500.0)  # explicit override
 
 The `Simulator` maintains internal chiller state between `optimize()` calls — which chillers are running and for how long — so ramp factors and switching thresholds apply correctly across sequential calls.
 
+### Initial State
+
+Both `stream()` and `simulate()` accept an optional `InitialState` describing which chillers are already running and how long they have been running. If omitted, all chillers start off with zero elapsed time.
+
+```python
+InitialState:
+    active_mask: NDArray[bool]               # which chillers are currently on
+    time_since_start_hours: NDArray[float]   # runtime for each chiller (ignored if not active)
+```
+
+Chiller ages are part of `ChillerGrid` (set at build time via `.with_grid(ages_years=...)`), not `InitialState`.
+
 ### Dynamic Simulation
 
 **Streaming** (real-time control loop, generator):
 ```python
 for step in sim.stream(duration_hours=24.0, time_step_hours=1.0):
     send_to_controller(step.active_mask, step.time_hours)
+
+# with non-zero initial state
+state = InitialState(active_mask=np.array([True, True, False, False]),
+                     time_since_start_hours=np.array([2.0, 0.1, 0.0, 0.0]))
+for step in sim.stream(duration_hours=24.0, time_step_hours=1.0, initial_state=state):
+    ...
 ```
 
 **Batch** (full simulation, returns aggregated result):
 ```python
 result = sim.simulate(duration_hours=24.0, time_step_hours=1.0)
+result = sim.simulate(duration_hours=24.0, time_step_hours=1.0, initial_state=state)
 result.schedule           # NDArray[bool], shape (n_steps, n_chillers)
 result.schedule[:, 3]     # chiller 3's on/off history
-result.times_hours        # time of each decision
 ```
 
-**State reset:** Both `stream()` and `simulate()` reset all internal chiller state (startup clocks, active set) to "all chillers off, zero elapsed time" at the start of each call. This ensures identical schedules for the same inputs regardless of prior `optimize()` calls.
+**State at start of run:** Both `stream()` and `simulate()` initialize from `InitialState` if provided, otherwise from all-off. Prior `optimize()` call state does not carry over into `stream()`/`simulate()`.
 
-`stream()` and `simulate()` produce identical schedules for the same inputs.
+`stream()` and `simulate()` produce identical schedules for the same inputs and initial state.
 
 ### Result Types
 
