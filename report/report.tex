@@ -326,8 +326,8 @@ The effective system-level COP is defined as $\cop_{\mathrm{eff}} = Q_{\mathrm{t
 \label{sec:architecture}
 % =============================================================================
 
-The package adopts a modular, composition-based architecture organized into four layers: core, component, model, and simulation.
-This design follows the principle of composition over inheritance: the central \texttt{SimulationEnvironment} class holds instances of \texttt{ChillerArray}, \texttt{WindVector}, and a pluggable \texttt{BaseInteractionModel} rather than inheriting from any of them~\cite{ham2015dynamic}.
+The package adopts a modular, composition-based architecture organized into three layers: layout, physics, and simulation.
+This design follows the principle of composition over inheritance: the \texttt{Simulator} is constructed via a fluent \texttt{SimulatorBuilder} that composes a \texttt{ChillerGrid}, \texttt{WindConditions}, and pluggable physics functions rather than relying on class inheritance~\cite{ham2015dynamic}.
 
 % --- TikZ Architecture Diagram ---
 \begin{figure}[htbp]
@@ -343,43 +343,31 @@ This design follows the principle of composition over inheritance: the central \
         % Simulation Layer
         \node[layer, fill=orange!10] (sim) at (0, 5.0) {};
         \node[anchor=north west, font=\sffamily\small\bfseries] at ([xshift=5pt, yshift=-5pt] sim.north west) {Simulation};
-        \node[block, fill=orange!25] (env) at (-2.5, 4.9) {SimulationEnvironment};
-        \node[block, fill=orange!25] (opt) at (2.5, 4.9) {Optimizer};
+        \node[block, fill=orange!25] (builder) at (-2.5, 4.9) {SimulatorBuilder};
+        \node[block, fill=orange!25] (simulator) at (2.5, 4.9) {Simulator};
 
-        % Component Layer
-        \node[layer, fill=green!8] (comp) at (0, 2.5) {};
-        \node[anchor=north west, font=\sffamily\small\bfseries] at ([xshift=5pt, yshift=-5pt] comp.north west) {Component};
-        \node[block, fill=green!20] (array) at (-4, 2.4) {ChillerArray};
-        \node[block, fill=green!20] (wind) at (0, 2.4) {WindVector};
-        \node[block, fill=green!20] (imodel) at (4, 2.4) {InteractionModel};
+        % Physics Layer
+        \node[layer, fill=violet!8] (phys) at (0, 2.5) {};
+        \node[anchor=north west, font=\sffamily\small\bfseries] at ([xshift=5pt, yshift=-5pt] phys.north west) {Physics};
+        \node[block, fill=violet!20] (cop) at (-4, 2.4) {CopFn};
+        \node[block, fill=violet!20] (gauss) at (0, 2.4) {GaussianPlumeModel};
+        \node[block, fill=violet!20] (degrad) at (4, 2.4) {DegradationFn};
 
-        % Model Layer
-        \node[layer, fill=violet!8] (modl) at (0, 0.0) {};
-        \node[anchor=north west, font=\sffamily\small\bfseries] at ([xshift=5pt, yshift=-5pt] modl.north west) {Model};
-        \node[block, fill=violet!20] (base) at (-2, -0.1) {BaseInteractionModel};
-        \node[block, fill=violet!20] (gauss) at (3, -0.1) {GaussianPlumeModel};
+        % Layout Layer
+        \node[layer, fill=green!8] (lay) at (0, 0.0) {};
+        \node[anchor=north west, font=\sffamily\small\bfseries] at ([xshift=5pt, yshift=-5pt] lay.north west) {Layout};
+        \node[block, fill=green!20] (grid) at (-2, -0.1) {ChillerGrid};
+        \node[block, fill=green!20] (wind) at (3, -0.1) {WindConditions};
 
-        % Core Layer
-        \node[layer, fill=red!8] (core) at (0, -2.5) {};
-        \node[anchor=north west, font=\sffamily\small\bfseries] at ([xshift=5pt, yshift=-5pt] core.north west) {Core};
-        \node[block, fill=red!15] (cfg) at (-3, -2.6) {configs.py};
-        \node[block, fill=red!15] (cst) at (0.5, -2.6) {constants.py};
-        \node[block, fill=red!15] (ds) at (4, -2.6) {Data Structures};
+        % Arrows: Simulation -> Physics
+        \draw[arr] (simulator.south) -- ++(0,-0.5) -| (cop.north);
+        \draw[arr] (simulator.south) -- ++(0,-0.5) -| (gauss.north);
+        \draw[arr] (simulator.south) -- ++(0,-0.5) -| (degrad.north);
+        \draw[darr] (builder.east) -- (simulator.west);
 
-        % Arrows: Simulation -> Components
-        \draw[arr] (env.south) -- ++(0,-0.5) -| (array.north);
-        \draw[arr] (env.south) -- ++(0,-0.5) -| (wind.north);
-        \draw[arr] (env.south) -- ++(0,-0.5) -| (imodel.north);
-        \draw[darr] (opt.west) -- (env.east);
-
-        % Arrows: Components -> Models
-        \draw[darr] (imodel.south) -- (base.north);
-        \draw[arr] (gauss.west) -- (base.east) node[midway, above, font=\sffamily\scriptsize] {extends};
-
-        % Arrows: Components -> Core
-        \draw[darr] (array.south) -- ++(0,-0.5) -| (cfg.north);
-        \draw[darr] (wind.south) -- ++(0,-0.7) -| (cst.north);
-        \draw[darr] (gauss.south) -- ++(0,-0.5) -| (ds.north);
+        % Arrows: Physics -> Layout
+        \draw[darr] (gauss.south) -- (grid.north);
+        \draw[darr] (gauss.south) -- ++(0,-0.5) -| (wind.north);
     \end{tikzpicture}
     \caption{Layered architecture of the \texttt{chiller-sim} package.
     Solid arrows denote composition; dashed arrows denote dependency or extension.}
@@ -387,11 +375,10 @@ This design follows the principle of composition over inheritance: the central \
 \end{figure}
 
 Thermodynamic states are treated as immutable throughout the package.
-The \texttt{ChillerSpec} class is implemented as a frozen dataclass, and \texttt{ChillerState} as well as \texttt{PerformanceResult} are defined as \texttt{NamedTuple} instances.
+The \texttt{ChillerGrid} class is implemented as a frozen dataclass, and result types (\texttt{OptimizeResult}, \texttt{SimulationResult}) use immutable structures.
 Returning a new state object after each thermodynamic process eliminates an entire class of mutation-related bugs and simplifies reasoning about the simulation flow.
 
-Input validation is handled by Pydantic models in the core layer, which enforce physically plausible parameter ranges at the boundary of the system.
-For example, the \texttt{ChillerConfig} model rejects COP values exceeding 10 (the practical upper bound for vapour compression cycles) and negative sensitivity coefficients.
+Input validation is handled by the \texttt{SimulatorBuilder}, which enforces required fields and physically plausible parameter ranges at build time.
 
 All performance-critical computations are fully vectorized using NumPy~\cite{harris2020numpy}.
 The interaction matrix $\mathbf{A}$ is computed in a single pass using broadcasting and \texttt{np.einsum} for the wind-direction projection, without any explicit Python-level loops.
