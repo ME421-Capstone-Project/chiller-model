@@ -6,7 +6,7 @@ from chiller_sim import Simulator
 def _base_sim(load_kw: float = 500.0, min_savings_kw: float = 0.0) -> object:
     return (
         Simulator()
-        .with_grid(rows=4, cols=4, spacing_m=10.0, base_cop=5.5, alpha=0.7, seed=0)
+        .with_grid(rows=4, cols=4, spacing_m=10.0, base_cop=5.5, max_cooling_kw=500.0, alpha=0.7, seed=0)
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: load_kw)
@@ -52,7 +52,7 @@ def test_downwind_chillers_have_higher_inlet_temp():
     # chiller at x=20 is downwind. Force both on with huge switching threshold.
     sim = (
         Simulator()
-        .with_grid(rows=1, cols=2, spacing_m=20.0, base_cop=5.0, ages_years=np.zeros(2))
+        .with_grid(rows=1, cols=2, spacing_m=20.0, base_cop=5.0, max_cooling_kw=500.0, ages_years=np.zeros(2))
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: 200.0)
@@ -126,7 +126,7 @@ def test_ramp_state_advances_within_run():
     # After one 1-hour step (past the 0.25h startup window), COP should be unpenalized.
     sim = (
         Simulator()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, ages_years=np.zeros(4))
+        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=500.0, ages_years=np.zeros(4))
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: 400.0)
@@ -150,7 +150,7 @@ def test_initial_state_chillers_start_ramped():
     # so the ramp effect is visible in the work output.
     sim = (
         Simulator()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, ages_years=np.zeros(4))
+        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=500.0, ages_years=np.zeros(4))
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: 400.0)
@@ -175,7 +175,7 @@ def test_custom_load_fn_drives_load_at_each_step():
 
     sim = (
         Simulator()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, seed=0)
+        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=500.0, seed=0)
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(tracking_load)
@@ -196,7 +196,7 @@ def test_custom_cop_fn_changes_work():
     # A worse cop_fn (returns half the COP) should result in more work
     sim_custom = (
         Simulator()
-        .with_grid(rows=4, cols=4, spacing_m=10.0, base_cop=5.5, alpha=0.7, seed=0)
+        .with_grid(rows=4, cols=4, spacing_m=10.0, base_cop=5.5, max_cooling_kw=500.0, alpha=0.7, seed=0)
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: 500.0)
@@ -208,12 +208,15 @@ def test_custom_cop_fn_changes_work():
 
 
 def test_custom_degradation_fn_affects_aged_chillers():
-    # No degradation vs heavy degradation on a grid with known ages
+    # No degradation vs heavy degradation on a grid with known ages.
+    # Degradation reduces capacity, so 50% degradation forces more chillers on.
     ages = np.full(4, 10.0)  # all 10 years old
 
+    # max_cooling_kw=200: no-degradation chillers can each do 200 kW (2 needed for 400 kW);
+    # with 50% degradation each can only do 100 kW (all 4 needed for 400 kW).
     sim_nodeg = (
         Simulator()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, ages_years=ages)
+        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=200.0, ages_years=ages)
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: 400.0)
@@ -222,7 +225,7 @@ def test_custom_degradation_fn_affects_aged_chillers():
     )
     sim_heavydeg = (
         Simulator()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, ages_years=ages)
+        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=200.0, ages_years=ages)
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: 400.0)
@@ -231,7 +234,8 @@ def test_custom_degradation_fn_affects_aged_chillers():
     )
     r_nodeg = sim_nodeg.optimize(time_hours=0.0)
     r_heavydeg = sim_heavydeg.optimize(time_hours=0.0)
-    assert r_heavydeg.total_work_kw > r_nodeg.total_work_kw
+    # Heavy degradation forces more chillers active to meet the same load
+    assert r_heavydeg.active_mask.sum() > r_nodeg.active_mask.sum()
 
 
 def test_custom_ramp_fn_increases_work_when_starting_from_initial_state():
@@ -239,7 +243,7 @@ def test_custom_ramp_fn_increases_work_when_starting_from_initial_state():
     # Use initial_state so the first call is NOT the first-call steady-state path.
     sim = (
         Simulator()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, ages_years=np.zeros(4))
+        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=500.0, ages_years=np.zeros(4))
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: 400.0)
@@ -264,7 +268,7 @@ def test_custom_ambient_temp_fn_is_called():
 
     sim = (
         Simulator()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, seed=0)
+        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=500.0, seed=0)
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp_fn(tracking_temp)
         .with_load_fn(lambda t: 400.0)
@@ -282,7 +286,7 @@ def test_wind_fn_is_called_at_each_step():
 
     sim = (
         Simulator()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, seed=0)
+        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=500.0, seed=0)
         .with_wind_fn(tracking_wind)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: 400.0)

@@ -9,7 +9,7 @@ from chiller_sim.layout.grid import ChillerGrid
 from chiller_sim.layout.wind import WindConditions, WindFn
 from chiller_sim.physics.ambient_temp import AmbientTempFn
 from chiller_sim.physics.cop import CopFn, default_cop_fn
-from chiller_sim.physics.degradation import DegradationFn, default_degradation_fn
+from chiller_sim.physics.degradation import DegradationFn, default_capacity_degradation_fn
 from chiller_sim.physics.gaussian_plume import GaussianPlumeModel
 from chiller_sim.physics.load import LoadFn
 from chiller_sim.physics.ramp import RampFn, default_ramp_fn
@@ -42,6 +42,7 @@ class SimulatorBuilder:
         cols: int,
         spacing_m: float,
         base_cop: float,
+        max_cooling_kw: float,
         alpha: float = 0.7,
         ages_years: NDArray[np.float64] | None = None,
         seed: int | None = None,
@@ -53,6 +54,7 @@ class SimulatorBuilder:
             cols=cols,
             spacing_m=spacing_m,
             base_cop=base_cop,
+            max_cooling_kw=max_cooling_kw,
             alpha=alpha,
             ages_years=ages_years,
             seed=seed,
@@ -62,21 +64,25 @@ class SimulatorBuilder:
     def with_wind(self, speed_m_per_s: float, angle_deg: float) -> SimulatorBuilder:
         """Set static wind conditions (speed and direction)."""
         self._wind = WindConditions(speed_m_per_s=speed_m_per_s, angle_deg=angle_deg)
+        self._wind_fn = None
         return self
 
     def with_wind_fn(self, fn: WindFn) -> SimulatorBuilder:
         """Set a time-varying wind plugin; overrides any static wind."""
         self._wind_fn = fn
+        self._wind = None
         return self
 
     def with_ambient_temp(self, temp_k: float) -> SimulatorBuilder:
         """Set a constant ambient temperature in Kelvin."""
         self._ambient_temp_k = temp_k
+        self._ambient_temp_fn = None
         return self
 
     def with_ambient_temp_fn(self, fn: AmbientTempFn) -> SimulatorBuilder:
         """Set a time-varying ambient temperature plugin."""
         self._ambient_temp_fn = fn
+        self._ambient_temp_k = None
         return self
 
     def with_dispersion(self, coeff: float) -> SimulatorBuilder:
@@ -95,7 +101,7 @@ class SimulatorBuilder:
         return self
 
     def with_degradation_fn(self, fn: DegradationFn) -> SimulatorBuilder:
-        """Override the default age-based COP degradation plugin."""
+        """Override the default age-based capacity degradation plugin."""
         self._degradation_fn = fn
         return self
 
@@ -126,9 +132,11 @@ class SimulatorBuilder:
         # Resolve defaults
         cop_fn = self._cop_fn if self._cop_fn is not None else default_cop_fn(self._grid.alpha)
         deg_fn = (
-            self._degradation_fn if self._degradation_fn is not None else default_degradation_fn
+            self._degradation_fn
+            if self._degradation_fn is not None
+            else default_capacity_degradation_fn(years_to_80_pct=10.0)
         )
-        ramp_fn = self._ramp_fn if self._ramp_fn is not None else default_ramp_fn
+        ramp_fn = self._ramp_fn if self._ramp_fn is not None else default_ramp_fn()
 
         # Build initial wind conditions (required for matrix precomputation)
         if self._wind is None and self._wind_fn is None:

@@ -1,6 +1,6 @@
 import math
 from chiller_sim.physics.cop import default_cop_fn
-from chiller_sim.physics.degradation import default_degradation_fn
+from chiller_sim.physics.degradation import default_capacity_degradation_fn
 from chiller_sim.physics.ramp import default_ramp_fn
 
 
@@ -32,44 +32,53 @@ def test_default_cop_decreases_with_thermal_rise():
     assert r_low > r_high
 
 
-def test_default_degradation_new_chiller():
-    # Age 0: factor = 1.0
-    assert default_degradation_fn(0.0) == 1.0
+def test_default_capacity_degradation_new_chiller():
+    # Age 0: factor = 1.0 regardless of years_to_80_pct
+    fn = default_capacity_degradation_fn(years_to_80_pct=10.0)
+    assert fn(0.0) == 1.0
 
 
-def test_default_degradation_one_year():
-    # Age 1: factor = 0.8 (by design)
-    assert abs(default_degradation_fn(1.0) - 0.8) < 1e-9
+def test_default_capacity_degradation_at_threshold():
+    # At years_to_80_pct: factor = 0.8
+    fn = default_capacity_degradation_fn(years_to_80_pct=10.0)
+    assert abs(fn(10.0) - 0.8) < 1e-9
 
 
-def test_default_degradation_monotone():
-    factors = [default_degradation_fn(a) for a in [0.0, 1.0, 5.0, 10.0]]
+def test_default_capacity_degradation_monotone():
+    fn = default_capacity_degradation_fn(years_to_80_pct=10.0)
+    factors = [fn(a) for a in [0.0, 1.0, 5.0, 10.0]]
     assert all(factors[i] > factors[i + 1] for i in range(len(factors) - 1))
 
 
 def test_default_ramp_at_zero():
-    # Just started: factor = 0.0
-    assert default_ramp_fn(0.0) == 0.0
+    # Just started: factor = initial_ramp (non-zero by default)
+    ramp = default_ramp_fn(initial_ramp=0.1)
+    assert ramp(0.0) == 0.1
 
 
 def test_default_ramp_at_startup_time():
     # At startup_time_hours (0.25): factor = 1.0
-    assert default_ramp_fn(0.25) == 1.0
+    ramp = default_ramp_fn()
+    assert ramp(0.25) == 1.0
 
 
 def test_default_ramp_midpoint():
-    # At half startup time: factor = 0.5
-    assert abs(default_ramp_fn(0.125) - 0.5) < 1e-9
+    # At half startup time: factor = initial_ramp + (1 - initial_ramp) * 0.5
+    ramp = default_ramp_fn(initial_ramp=0.1)
+    expected = 0.1 + 0.9 * 0.5  # 0.55
+    assert abs(ramp(0.125) - expected) < 1e-9
 
 
 def test_default_ramp_saturates_above_startup_time():
     # Beyond startup time: stays at 1.0
-    assert default_ramp_fn(1.0) == 1.0
-    assert default_ramp_fn(100.0) == 1.0
+    ramp = default_ramp_fn()
+    assert ramp(1.0) == 1.0
+    assert ramp(100.0) == 1.0
 
 
 def test_default_ramp_steady_state_at_inf():
-    assert default_ramp_fn(float('inf')) == 1.0
+    ramp = default_ramp_fn()
+    assert ramp(float('inf')) == 1.0
 
 
 import numpy as np

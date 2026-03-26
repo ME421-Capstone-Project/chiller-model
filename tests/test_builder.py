@@ -6,7 +6,7 @@ from chiller_sim.simulation.builder import SimulatorBuilder
 def _base_builder() -> SimulatorBuilder:
     return (
         SimulatorBuilder()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0)
+        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=500.0)
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: 400.0)
@@ -21,7 +21,7 @@ def test_build_succeeds_with_required_fields():
 def test_build_raises_without_load_fn():
     builder = (
         SimulatorBuilder()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0)
+        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=500.0)
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
     )
@@ -32,7 +32,7 @@ def test_build_raises_without_load_fn():
 def test_build_raises_without_ambient_temp():
     builder = (
         SimulatorBuilder()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0)
+        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=500.0)
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_load_fn(lambda t: 400.0)
     )
@@ -55,7 +55,7 @@ def test_ambient_temp_fn_satisfies_ambient_requirement():
     # ambient_temp_fn counts as satisfying the ambient_temp requirement
     sim = (
         SimulatorBuilder()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0)
+        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=500.0)
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp_fn(lambda t: 298.15)
         .with_load_fn(lambda t: 400.0)

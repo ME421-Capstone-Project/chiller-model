@@ -59,6 +59,7 @@ class Simulator:
         self._is_first_call = True
         self._active_mask: NDArray[np.bool_] = np.zeros(grid.num_chillers, dtype=bool)
         self._time_since_start: NDArray[np.float64] = np.zeros(grid.num_chillers)
+        self._last_optimize_time_hours: float | None = None
 
     # Builder re-entry: allow sim.with_wind(...).build()
     def with_wind(self, speed_m_per_s: float, angle_deg: float) -> SimulatorBuilder:
@@ -111,27 +112,36 @@ class Simulator:
         if n_active == 0:
             return float("inf"), np.zeros(n), np.zeros(n)
 
-        load_per_unit = load_kw / n_active
-        temp_rise = active_mask.astype(np.float64) @ self._interaction_matrix
-
         ramp_factors = (
             np.ones(n)
             if use_steady_state_ramp
             else np.array([self._ramp_fn(t) for t in time_since_start])
         )
-        deg_factors = np.array([self._degradation_fn(a) for a in self._grid.ages_years])
+        effective_caps = np.array([
+            self._grid.max_cooling_kw
+            * self._degradation_fn(self._grid.ages_years[i])
+            * ramp_factors[i]
+            for i in range(n)
+        ])
+        if load_kw > effective_caps[active_mask].sum():
+            return float("inf"), np.zeros(n), np.zeros(n)
+
+        # Distribute load in proportion to each active chiller's effective capacity
+        active_caps = effective_caps[active_mask]
+        loads = load_kw * active_caps / active_caps.sum()
+
+        temp_rise = active_mask.astype(np.float64) @ self._interaction_matrix
 
         cop_array = np.array(
             [
                 self._cop_fn(self._grid.base_cop, temp_rise[i], ambient_temp_k)
-                * deg_factors[i]
-                * ramp_factors[i]
                 for i in range(n)
             ]
         )
         cop_array = np.maximum(cop_array, 1e-6)
+        cop_array[~active_mask] = 0.0
 
-        total_work = float(np.sum(load_per_unit / cop_array[active_mask]))
+        total_work = float(np.sum(loads / cop_array[active_mask]))
         return total_work, cop_array, temp_rise
 
     def _greedy_optimize(
@@ -170,16 +180,19 @@ class Simulator:
 
             for i in range(n):
                 candidate_mask = active_mask.copy()
-                candidate_times = time_since_start.copy()
                 candidate_mask[i] = not candidate_mask[i]
 
+                # Activation is evaluated at steady-state COP (time → ∞) so
+                # the startup ramp does not deter adding capacity that is
+                # beneficial at equilibrium.  Deactivation uses real elapsed
+                # times to measure the immediate saving accurately.
+                candidate_eval_times = time_since_start.copy()
                 if candidate_mask[i]:  # activating
-                    candidate_times[i] = 0.0
-                # deactivating: time value irrelevant for inactive chillers
+                    candidate_eval_times[i] = np.inf
 
                 candidate_work, _, _ = self._evaluate_work(
                     candidate_mask,
-                    candidate_times,
+                    candidate_eval_times,
                     load_kw,
                     ambient_temp_k,
                     use_steady_state_ramp=is_first,
@@ -189,7 +202,10 @@ class Simulator:
                 if savings >= self._min_savings_kw and candidate_work < best_work:
                     best_work = candidate_work
                     best_mask = candidate_mask
-                    best_times = candidate_times
+                    # Real state: newly activated chillers begin their ramp at 0.
+                    best_times = time_since_start.copy()
+                    if candidate_mask[i]:  # activating
+                        best_times[i] = 0.0
 
             if best_mask is not None:
                 active_mask = best_mask
@@ -205,6 +221,12 @@ class Simulator:
         load_kw: float | None = None,
     ) -> OptimizeResult:
         """Run one greedy optimization step and return detailed results."""
+        if self._last_optimize_time_hours is not None:
+            elapsed = time_hours - self._last_optimize_time_hours
+            if elapsed > 0:
+                self._time_since_start[self._active_mask] += elapsed
+                self._time_since_start[~self._active_mask] = 0.0
+
         self._update_wind_if_changed(time_hours)
         ambient_temp_k = self._get_ambient_temp(time_hours)
         resolved_load = load_kw if load_kw is not None else self._load_fn(time_hours)
@@ -217,9 +239,21 @@ class Simulator:
             all_on, steady_times, resolved_load, ambient_temp_k, use_steady_state_ramp=True
         )
 
+        was_first_call = self._is_first_call
+        prev_active = self._active_mask.copy()
         active_mask, time_since_start = self._greedy_optimize(resolved_load, ambient_temp_k)
+
+        # Report work at steady-state capacity for chillers just activated this step
+        # (matching the optimizer's own evaluation), so the result reflects equilibrium
+        # performance rather than the first instant of ramp-up.
+        eval_times = time_since_start.copy()
+        if not was_first_call:
+            newly_activated = active_mask & ~prev_active
+            eval_times[newly_activated] = np.inf
+
         total_work, cop_array, temp_rise = self._evaluate_work(
-            active_mask, time_since_start, resolved_load, ambient_temp_k
+            active_mask, eval_times, resolved_load, ambient_temp_k,
+            use_steady_state_ramp=was_first_call,
         )
 
         savings_fraction = (
@@ -229,6 +263,7 @@ class Simulator:
         # Persist state for next optimize() call
         self._active_mask = active_mask
         self._time_since_start = time_since_start
+        self._last_optimize_time_hours = time_hours
 
         return OptimizeResult(
             time_hours=time_hours,
@@ -252,6 +287,7 @@ class Simulator:
             self._active_mask = np.zeros(n, dtype=bool)
             self._time_since_start = np.zeros(n)
             self._is_first_call = True
+        self._last_optimize_time_hours = None
 
     def stream(
         self,
@@ -265,9 +301,6 @@ class Simulator:
         t = initial_time_hours
         while t < initial_time_hours + duration_hours - 1e-9:
             result = self.optimize(time_hours=t)
-            # Advance startup clocks for active chillers
-            self._time_since_start[self._active_mask] += time_step_hours
-            self._time_since_start[~self._active_mask] = 0.0
             yield result
             t += time_step_hours
 

@@ -72,7 +72,7 @@ from chiller_sim.layout.wind import WindConditions
 
 
 def test_chiller_grid_from_regular_grid():
-    grid = ChillerGrid.create_grid(rows=2, cols=3, spacing_m=10.0, base_cop=5.0, alpha=0.7)
+    grid = ChillerGrid.create_grid(rows=2, cols=3, spacing_m=10.0, base_cop=5.0, max_cooling_kw=500.0, alpha=0.7)
     assert grid.positions_m.shape == (6, 2)
     assert grid.base_cop == 5.0
     assert grid.alpha == 0.7
@@ -80,19 +80,19 @@ def test_chiller_grid_from_regular_grid():
 
 
 def test_chiller_grid_seed_reproducible():
-    g1 = ChillerGrid.create_grid(rows=2, cols=2, spacing_m=5.0, base_cop=4.0, seed=42)
-    g2 = ChillerGrid.create_grid(rows=2, cols=2, spacing_m=5.0, base_cop=4.0, seed=42)
+    g1 = ChillerGrid.create_grid(rows=2, cols=2, spacing_m=5.0, base_cop=4.0, max_cooling_kw=500.0, seed=42)
+    g2 = ChillerGrid.create_grid(rows=2, cols=2, spacing_m=5.0, base_cop=4.0, max_cooling_kw=500.0, seed=42)
     np.testing.assert_array_equal(g1.ages_years, g2.ages_years)
 
 
 def test_chiller_grid_explicit_ages():
     ages = np.array([1.0, 2.0, 3.0, 4.0])
-    grid = ChillerGrid.create_grid(rows=2, cols=2, spacing_m=5.0, base_cop=4.0, ages_years=ages)
+    grid = ChillerGrid.create_grid(rows=2, cols=2, spacing_m=5.0, base_cop=4.0, max_cooling_kw=500.0, ages_years=ages)
     np.testing.assert_array_equal(grid.ages_years, ages)
 
 
 def test_chiller_grid_num_chillers():
-    grid = ChillerGrid.create_grid(rows=3, cols=4, spacing_m=10.0, base_cop=4.0)
+    grid = ChillerGrid.create_grid(rows=3, cols=4, spacing_m=10.0, base_cop=4.0, max_cooling_kw=500.0)
     assert grid.num_chillers == 12
 
 
