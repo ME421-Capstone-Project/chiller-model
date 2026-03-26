@@ -1,271 +1,284 @@
 User Guide
 ==========
 
-Main features and how to use them.
+Architecture, builder reference, simulation methods, results, and physics
+plugins.
 
 
-Wind: Atmospheric Conditions
-----------------------------
-
-``WindVector`` holds wind speed, direction, and ambient temperature (all SI units).
-
-**Create from velocity (vx, vy) in m/s:**
-
-.. code-block:: python
-
-   from src.components import WindVector
-
-   wind = WindVector(
-       velocity_m_per_s=(5.0, 2.0),
-       ambient_temp_k=298.15
-   )
-
-**Or from speed and angle (degrees from x-axis):**
-
-.. code-block:: python
-
-   wind = WindVector.from_speed_and_angle(
-       speed_m_per_s=5.0,
-       angle_deg=45.0,
-       ambient_temp_k=298.15
-   )
-
-**Useful attributes:**
-
-.. code-block:: python
-
-   wind.speed_m_per_s     # Scalar speed
-   wind.direction         # Unit vector (vx, vy)
-   wind.ambient_temp_k    # Temperature (K)
-
-
-ChillerArray: Layout and Properties
------------------------------------
-
-``ChillerArray`` holds chiller positions and properties (base COP, alpha, age).
-
-**Grid layout:**
-
-.. code-block:: python
-
-   from src.components import ChillerArray
-
-   array = ChillerArray.create_grid(
-       rows=5, cols=5, spacing_m=3.0,
-       base_cop=4.0, alpha=0.7
-   )
-
-**Custom positions:**
-
-.. code-block:: python
-
-   import numpy as np
-
-   positions = np.array([[0, 0], [5, 0], [2.5, 4.33]])
-   array = ChillerArray(positions_m=positions, base_cop=4.0, alpha=0.7)
-
-**Aging:** Pass ``ages_years`` (one value per chiller) to model older units.
-Omit it for new chillers (age 0). See the Examples page for details.
-
-**Alpha:** How sensitive COP is to inlet temperature rise. Higher = more
-degradation. Typical: 0.5–1.0.
-
-
-Interaction Models
-------------------
-
-Interaction models compute the thermal interference between chillers.
-
-GaussianPlumeModel
-^^^^^^^^^^^^^^^^^^
-
-The default model uses Gaussian plume dispersion physics:
-
-.. code-block:: python
-
-   from src.models import GaussianPlumeModel
-
-   model = GaussianPlumeModel(dispersion_coeff=1.2)
-
-The dispersion coefficient (σ) controls plume spread:
-
-- Lower values (~0.8): Narrow, concentrated plumes
-- Higher values (~2.0): Wide, dispersed plumes
-
-Custom Interaction Models
-^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Create custom models by subclassing ``BaseInteractionModel``:
-
-.. code-block:: python
-
-   from src.models import BaseInteractionModel
-   from src.components import WindVector
-   import numpy as np
-
-   class SimpleDistanceModel(BaseInteractionModel):
-       """A simple inverse-distance interaction model."""
-       
-       def __init__(self, decay_factor: float = 1.0):
-           self.decay_factor = decay_factor
-       
-       def compute_interaction_matrix(
-           self,
-           positions: np.ndarray,
-           wind: WindVector
-       ) -> np.ndarray:
-           """Compute interaction based on downwind distance."""
-           n = len(positions)
-           wind_vec = wind.direction
-           A = np.zeros((n, n), dtype=np.float64)
-           
-           for k in range(n):
-               for m in range(n):
-                   if k == m:
-                       continue
-                   d_km = positions[m] - positions[k]
-                   long_dist = np.dot(d_km, wind_vec)
-                   if long_dist > 0:  # Only affect downwind units
-                       distance = np.linalg.norm(d_km)
-                       A[k, m] = self.decay_factor / (distance + 1.0)
-           
-           return A
-
-
-SimulationEnvironment
----------------------
-
-The ``SimulationEnvironment`` orchestrates the simulation by combining
-the chiller array, wind conditions, and interaction model.
-
-Setup and Execution
-^^^^^^^^^^^^^^^^^^^
-
-.. code-block:: python
-
-   from src.simulation import SimulationEnvironment
-   import numpy as np
-
-   env = SimulationEnvironment(
-       chiller_array=array,
-       wind=wind,
-       interaction_model=model
-   )
-
-   # The interaction matrix is computed automatically
-   print(f"Matrix shape: {env.interaction_matrix.shape}")
-
-   # Run simulation with a boolean mask
-   active_mask = np.ones(array.num_chillers, dtype=bool)
-   active_mask[0] = False  # Turn off first chiller
-   
-   result = env.compute_performance(active_mask, total_load_kw=100.0)
-
-
-PerformanceResult
-^^^^^^^^^^^^^^^^^
-
-The result contains:
-
-.. code-block:: python
-
-   result.total_work_kw   # Total electrical consumption
-   result.cop_array       # COP for each chiller
-   result.load_array      # Load assigned to each chiller
-
-
-Optimization
+Architecture
 ------------
 
-The ``Optimizer`` class finds efficient chiller configurations.
+Three layers, each depending only on the one above it::
 
-Greedy Optimization
+   layout (ChillerGrid, WindConditions)
+       |
+   physics (CopFn, DegradationFn, RampFn, GaussianPlumeModel)
+       |
+   simulation (SimulatorBuilder -> Simulator)
+
+**layout** -- Defines where chillers sit on a rectangular grid and what the
+wind looks like at a given moment.
+
+**physics** -- Pluggable functions that model COP degradation, capacity aging,
+startup ramp behaviour, and thermal plume dispersion.
+
+**simulation** -- Assembles the pieces via a fluent builder, runs the
+optimizer, and returns typed result objects.
+
+
+SimulatorBuilder Reference
+--------------------------
+
+``SimulatorBuilder`` (imported as ``Simulator``) is the main entry point.
+Chain configuration methods, then call ``.build()`` to get a ``Simulator``.
+
+Grid
+^^^^
+
+.. code-block:: python
+
+   .with_grid(
+       rows=4, cols=4, spacing_m=10.0,
+       base_cop=4.0, max_cooling_kw=500.0,
+       alpha=0.7,                     # thermal sensitivity coefficient
+       ages_years=np.array([...]),     # optional, one value per chiller
+       seed=42,                        # optional, for reproducible random ages
+   )
+
+Wind
+^^^^
+
+Static wind (constant for the entire run):
+
+.. code-block:: python
+
+   .with_wind(speed_m_per_s=5.0, angle_deg=0.0)
+
+Time-varying wind (called at each time step):
+
+.. code-block:: python
+
+   def my_wind_fn(time_hours: float) -> tuple[float, float]:
+       """Return (speed_m_per_s, angle_deg) at the given time."""
+       return (5.0, 90.0 + 30.0 * math.sin(2 * math.pi * time_hours / 12))
+
+   .with_wind_fn(my_wind_fn)
+
+Temperature
+^^^^^^^^^^^
+
+Static ambient temperature:
+
+.. code-block:: python
+
+   .with_ambient_temp(temp_k=298.15)
+
+Time-varying ambient temperature:
+
+.. code-block:: python
+
+   .with_ambient_temp_fn(lambda t: 298.15 + 5.0 * math.sin(2 * math.pi * t / 24))
+
+Load
+^^^^
+
+A callable returning facility load in kW at a given time:
+
+.. code-block:: python
+
+   .with_load_fn(lambda t: 300.0 + 500.0 * math.sin(2 * math.pi * t / 24))
+
+Physics Plugins
+^^^^^^^^^^^^^^^
+
+Override the default COP, degradation, or ramp functions:
+
+.. code-block:: python
+
+   .with_cop_fn(my_cop_fn)
+   .with_degradation_fn(my_degradation_fn)
+   .with_ramp_fn(my_ramp_fn)
+
+Dispersion
+^^^^^^^^^^
+
+Set the Gaussian plume dispersion coefficient (default 1.2):
+
+.. code-block:: python
+
+   .with_dispersion(coeff=1.5)
+
+Switching Threshold
 ^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: python
-
-   from src.simulation import Optimizer
-
-   optimizer = Optimizer(env, total_load_kw=100.0)
-
-   # Keep at least 15 chillers active
-   result = optimizer.optimize_greedy(min_active=15)
-
-   print(f"Active: {result.num_active}")
-   print(f"Work: {result.optimal_work_kw:.2f} kW")
-   print(f"Mask: {result.optimal_mask}")
-
-The optimizer starts with all chillers on, then removes the one whose removal
-saves the most energy, until ``min_active`` remain.
-
-Comparing Strategies
-^^^^^^^^^^^^^^^^^^^^
-
-Compare standard vs. optimized activation:
+Minimum energy savings (kW) required to switch a chiller on or off.
+Prevents toggling when the benefit is marginal:
 
 .. code-block:: python
 
-   # Standard: First N chillers
-   state_std = np.zeros(array.num_chillers, dtype=bool)
-   state_std[:15] = True
-   result_std = env.compute_performance(state_std, 100.0)
+   .with_switching_threshold(min_savings_kw=2.0)
 
-   # Optimized: Greedy selection
-   result_opt = optimizer.optimize_greedy(min_active=15)
-   state_opt = result_opt.optimal_mask
-   result_opt_perf = env.compute_performance(state_opt, 100.0)
-
-   # Calculate improvement
-   improvement = (result_std.total_work_kw - result_opt_perf.total_work_kw) / \
-                  result_std.total_work_kw * 100
-   print(f"Efficiency improvement: {improvement:.2f}%")
-
-
-Pydantic Configuration
-----------------------
-
-The package uses Pydantic for validated configuration:
+Build
+^^^^^
 
 .. code-block:: python
 
-   from src.core.configs import ChillerConfig, WindConfig, SimulationConfig
+   simulator = builder.build()
 
-   # Validated chiller configuration
-   chiller_config = ChillerConfig(
-       base_cop=4.5,         # Must be > 0 and <= 10
-       rated_capacity_kw=50.0,
-       alpha=0.8
+Raises ``ValueError`` if required fields are missing. Required: grid,
+wind or wind_fn, ambient_temp or ambient_temp_fn, load_fn.
+
+
+Running Simulations
+-------------------
+
+optimize
+^^^^^^^^
+
+Single-step, state-aware optimization:
+
+.. code-block:: python
+
+   result = simulator.optimize(time_hours=0.0, load_kw=800.0)
+
+Returns an ``OptimizeResult``. Pass ``load_kw`` to override the load
+function for this step, or omit it to use the configured ``load_fn``.
+
+stream
+^^^^^^
+
+Yields one ``OptimizeResult`` per time step. Advances clocks automatically:
+
+.. code-block:: python
+
+   for result in simulator.stream(duration_hours=24.0, time_step_hours=1.0):
+       print(f"t={result.time_hours:.1f}h  work={result.total_work_kw:.1f} kW")
+
+Use ``stream`` when you want to process results incrementally or react to
+each step (e.g. logging, plotting).
+
+simulate
+^^^^^^^^
+
+Returns a ``SimulationResult`` containing all steps:
+
+.. code-block:: python
+
+   sim_result = simulator.simulate(
+       duration_hours=24.0,
+       time_step_hours=1.0,
+       initial_state=InitialState(active_mask=mask, time_since_start_hours=times),
    )
 
-   # Validated wind configuration
-   wind_config = WindConfig(
-       velocity_x_m_per_s=5.0,
-       velocity_y_m_per_s=2.0,
-       ambient_temp_k=300.0  # Must be in realistic range
+Use ``simulate`` when you need post-hoc analysis across all time steps.
+
+
+Results Reference
+-----------------
+
+OptimizeResult
+^^^^^^^^^^^^^^
+
+Returned by ``optimize()`` and yielded by ``stream()``:
+
+- ``time_hours`` -- Simulation time
+- ``load_kw`` -- Facility load at this step (kW)
+- ``active_mask`` -- Boolean array of active chillers
+- ``cop_array`` -- Effective COP per chiller
+- ``temp_rise_array`` -- Inlet temperature rise per chiller (K)
+- ``total_work_kw`` -- Total electrical power (kW)
+- ``baseline_work_kw`` -- Power if all chillers ran
+- ``savings_fraction`` -- Energy saved vs. baseline
+
+SimulationResult
+^^^^^^^^^^^^^^^^
+
+Returned by ``simulate()``. Wraps a list of ``OptimizeResult`` steps and
+provides array-level properties:
+
+- ``total_work_kw`` -- Shape ``(n_steps,)`` array of total work
+- ``loads_kw`` -- Shape ``(n_steps,)`` array of facility load
+- ``savings_fraction`` -- Shape ``(n_steps,)`` array of savings
+- ``schedule`` -- Shape ``(n_steps, n_chillers)`` boolean active schedule
+- ``cop_arrays`` -- Shape ``(n_steps, n_chillers)`` COP per step per chiller
+
+
+Physics Plugins
+---------------
+
+Each plugin is a callable matching a Protocol. Supply your own via the
+builder's ``with_*`` methods, or use the defaults.
+
+CopFn
+^^^^^
+
+.. code-block:: python
+
+   def my_cop_fn(base_cop: float, temp_rise_k: float, ambient_temp_k: float) -> float:
+       return base_cop / (1.0 + 0.5 * temp_rise_k)
+
+Default: ``default_cop_fn(alpha)`` -- ``base_cop / (1 + alpha * temp_rise_k)``
+
+DegradationFn
+^^^^^^^^^^^^^
+
+.. code-block:: python
+
+   def my_degradation_fn(age_years: float) -> float:
+       return max(0.5, 1.0 - 0.02 * age_years)
+
+Default: ``default_capacity_degradation_fn(years_to_80_pct=10.0)`` --
+exponential decay reaching 80% capacity at the specified age.
+
+RampFn
+^^^^^^
+
+.. code-block:: python
+
+   def my_ramp_fn(time_since_start_hours: float) -> float:
+       return min(1.0, time_since_start_hours / 0.5)
+
+Default: linear ramp from 0.1 at t=0 to 1.0 at t=0.25 h.
+
+WindFn
+^^^^^^
+
+.. code-block:: python
+
+   def my_wind_fn(time_hours: float) -> tuple[float, float]:
+       """Return (speed_m_per_s, angle_deg)."""
+       return (5.0, 90.0)
+
+AmbientTempFn
+^^^^^^^^^^^^^
+
+.. code-block:: python
+
+   def my_ambient_fn(time_hours: float) -> float:
+       """Return ambient temperature in Kelvin."""
+       return 298.15
+
+
+Warm Start with InitialState
+-----------------------------
+
+Pass an ``InitialState`` to ``simulate()`` to warm-start from a known
+configuration:
+
+.. code-block:: python
+
+   from chiller_sim import InitialState
+
+   state = InitialState(
+       active_mask=np.array([True, True, False, False]),
+       time_since_start_hours=np.array([1.0, 0.5, 0.0, 0.0]),
    )
 
-   # Simulation configuration
-   sim_config = SimulationConfig(
-       dispersion_coeff=1.5,
-       total_load_kw=100.0
+   result = simulator.simulate(
+       duration_hours=24.0,
+       time_step_hours=1.0,
+       initial_state=state,
    )
 
-Invalid values raise ``ValidationError`` with helpful messages.
-
-
-Best Practices
---------------
-
-1. **Use SI Units**: All internal calculations use SI (K, Pa, kg/s, J).
-   Convert at input/output boundaries.
-
-2. **Immutable States**: WindVector and results are immutable.
-   Create new instances rather than modifying.
-
-3. **Boolean Masks**: Use ``dtype=bool`` for active masks, not float.
-
-4. **Vectorization**: The package uses NumPy for efficient array operations.
-   Avoid Python loops when working with results.
-
-5. **Validation**: Use Pydantic configs for user-facing interfaces
-   to catch invalid parameters early.
+Chillers marked active in the initial state skip the startup ramp
+proportional to their ``time_since_start_hours``.

@@ -1,20 +1,14 @@
-Simulation Module
-=================
+Simulation
+==========
 
-Simulation orchestration and optimization strategies.
-
-Environment
------------
-
-.. automodule:: src.simulation.environment
+.. automodule:: chiller_sim.simulation
    :members:
-   :undoc-members:
-   :show-inheritance:
 
-Optimizer
----------
-
-.. automodule:: src.simulation.optimizer
+.. automodule:: chiller_sim.simulation.builder
    :members:
-   :undoc-members:
-   :show-inheritance:
+
+.. automodule:: chiller_sim.simulation.simulator
+   :members:
+
+.. automodule:: chiller_sim.simulation.results
+   :members:

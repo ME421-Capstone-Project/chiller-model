@@ -1,7 +1,7 @@
 Getting Started
 ===============
 
-A short guide to install and run your first simulation.
+A short guide to install the package and run your first optimization.
 
 
 Installation
@@ -19,104 +19,73 @@ Install from source:
 Basic Concepts
 --------------
 
-When chillers are packed close together, hot exhaust from one can blow into
-another's intake. That heats the air and makes the second chiller work harder.
-
-Key Concepts
-^^^^^^^^^^^^
-
 **COP (Coefficient of Performance)**
-   Cooling output ÷ electrical input. A COP of 4.0 means 4 kW cooling per 1 kW electricity.
+   Cooling output divided by electrical input. A COP of 4.0 means 4 kW of
+   cooling per 1 kW of electricity.
 
-**Thermal Interference**
-   One chiller's exhaust heats another's intake, so the second chiller loses efficiency.
+**Thermal interference**
+   Exhaust from one chiller heats a neighbour's intake, forcing it to work
+   harder for the same cooling output.
 
-**Gaussian Plume Model**
-   A physics-based model for how hot exhaust spreads downwind.
+**Max cooling capacity**
+   Each chiller has a nameplate limit (kW of cooling). Aging reduces this
+   capacity over time.
+
+**Startup ramp**
+   A freshly started chiller comes online at reduced capacity and ramps to
+   full output over a short period (default 15 minutes).
 
 
 Package Structure
-^^^^^^^^^^^^^^^^^
+-----------------
 
-- ``src.core``: Constants and configuration
-- ``src.components``: Wind, chillers, data center load
-- ``src.models``: Thermal interaction models (e.g. Gaussian plume)
-- ``src.simulation``: Simulation and optimization
+- ``chiller_sim.layout``: Grid geometry and wind conditions
+- ``chiller_sim.physics``: COP, degradation, ramp, and plume models
+- ``chiller_sim.simulation``: Builder, simulator, and result types
 
 
-Your First Simulation
----------------------
-
-Here's a minimal example:
+Minimal Working Example
+-----------------------
 
 .. code-block:: python
 
    import numpy as np
-   from src.components import WindVector, ChillerArray
-   from src.models import GaussianPlumeModel
-   from src.simulation import SimulationEnvironment
+   from chiller_sim import Simulator
 
-   # 1. Wind (5 m/s east, 25°C)
-   wind = WindVector(
-       velocity_m_per_s=(5.0, 2.0),
-       ambient_temp_k=298.15
+   sim = (
+       Simulator()
+       .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=4.0, max_cooling_kw=500.0)
+       .with_wind(speed_m_per_s=5.0, angle_deg=0.0)
+       .with_ambient_temp(temp_k=298.15)
+       .with_load_fn(lambda t: 800.0)
+       .build()
    )
 
-   # 2. Chiller array (4×4 grid, 3 m spacing)
-   array = ChillerArray.create_grid(
-       rows=4, cols=4, spacing_m=3.0,
-       base_cop=4.0, alpha=0.7
-   )
+   result = sim.optimize(time_hours=0.0)
 
-   # 3. Interaction model
-   model = GaussianPlumeModel(dispersion_coeff=1.2)
-
-   # 4. Run simulation
-   env = SimulationEnvironment(array, wind, model)
-   active_mask = np.ones(array.num_chillers, dtype=bool)
-   result = env.compute_performance(active_mask, total_load_kw=100.0)
-
-   print(f"Total work: {result.total_work_kw:.2f} kW")
-   print(f"Mean COP: {np.mean(result.cop_array):.2f}")
+   print(f"Active mask:    {result.active_mask}")
+   print(f"COP per chiller: {np.round(result.cop_array, 2)}")
+   print(f"Total work:     {result.total_work_kw:.2f} kW")
 
 
-Understanding the Results
-^^^^^^^^^^^^^^^^^^^^^^^^^
+Understanding Results
+---------------------
 
-``compute_performance`` returns:
+``optimize()`` returns an ``OptimizeResult`` with these fields:
 
-- ``total_work_kw``: Total electrical power (kW)
-- ``cop_array``: COP per chiller (degraded by thermal interference)
-- ``load_array``: Load per chiller (kW)
-
-
-Optimization
-------------
-
-The package includes an optimizer that finds the best subset of chillers to run:
-
-.. code-block:: python
-
-   from src.simulation import Optimizer
-
-   # Create optimizer for a given load
-   optimizer = Optimizer(env, total_load_kw=100.0)
-
-   # Run greedy optimization (keep at least 10 units active)
-   opt_result = optimizer.optimize_greedy(min_active=10)
-
-   # Get the optimized configuration
-   optimal_mask = opt_result.optimal_mask
-   print(f"Active chillers: {opt_result.num_active}")
-   print(f"Final work: {opt_result.final_work_kw:.2f} kW")
-
-The optimizer uses a greedy removal strategy, iteratively turning off
-the chiller whose removal provides the greatest efficiency improvement.
+- ``time_hours`` -- Simulation time of this step
+- ``load_kw`` -- Facility cooling load (kW)
+- ``active_mask`` -- Boolean array: which chillers are running
+- ``cop_array`` -- Effective COP for each chiller
+- ``temp_rise_array`` -- Inlet temperature rise per chiller (K)
+- ``total_work_kw`` -- Total electrical power consumed (kW)
+- ``baseline_work_kw`` -- Power if all chillers were running
+- ``savings_fraction`` -- Fraction of energy saved vs. baseline
 
 
 Next Steps
 ----------
 
-- See :doc:`user-guide` for detailed usage examples
-- See :doc:`examples` for real-world scenarios
+- See :doc:`user-guide` for the full API narrative and architecture overview
+- See :doc:`examples` for worked examples with generated images
 - See :doc:`api/index` for the complete API reference
