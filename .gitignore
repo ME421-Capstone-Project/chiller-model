@@ -235,3 +235,5 @@ __marimo__/
 *.png
 !docs/_static/images/*.png
 .worktrees/
+
+*.DS_Store
