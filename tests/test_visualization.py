@@ -1,3 +1,6 @@
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
@@ -5,6 +8,7 @@ from chiller_sim.layout.grid import ChillerLayout
 from chiller_sim.layout.wind import WindConditions
 from chiller_sim.simulation.results import OptimizeResult, SimulationResult
 from chiller_sim.visualization.animation import (
+    _draw_frame,
     _get_color_values,
     _resolve_ambient_temp,
     _resolve_wind,
@@ -112,3 +116,55 @@ def test_resolve_ambient_temp_array():
 
 def test_resolve_ambient_temp_none():
     assert _resolve_ambient_temp(None, time_hours=0.0, step_index=0) is None
+
+
+def test_draw_frame_creates_patches():
+    fig, ax = plt.subplots()
+    result = _make_result(n_chillers=4, n_steps=1)
+    layout = _make_layout()
+    step = result.steps[0]
+
+    _draw_frame(
+        ax=ax,
+        fig=fig,
+        step=step,
+        layout=layout,
+        color_by="cop",
+        square_size=3.0,
+        vmin=2.0,
+        vmax=6.0,
+        wind_conditions=None,
+        ambient_temp_c=None,
+    )
+
+    # Should have 4 Rectangle patches (one per chiller)
+    from matplotlib.patches import Rectangle
+    rects = [p for p in ax.patches if isinstance(p, Rectangle)]
+    assert len(rects) == 4
+    plt.close(fig)
+
+
+def test_draw_frame_with_overlays():
+    fig, ax = plt.subplots()
+    result = _make_result(n_chillers=4, n_steps=1)
+    layout = _make_layout()
+    step = result.steps[0]
+    wc = WindConditions(speed_m_per_s=3.0, angle_deg=45.0)
+
+    _draw_frame(
+        ax=ax,
+        fig=fig,
+        step=step,
+        layout=layout,
+        color_by="cop",
+        square_size=3.0,
+        vmin=2.0,
+        vmax=6.0,
+        wind_conditions=wc,
+        ambient_temp_c=25.0,
+    )
+
+    from matplotlib.patches import Rectangle
+    rects = [p for p in ax.patches if isinstance(p, Rectangle)]
+    assert len(rects) == 4
+    plt.close(fig)

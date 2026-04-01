@@ -67,6 +67,111 @@ def _resolve_ambient_temp(
     return float(arr[step_index]) - 273.15
 
 
+_COLORMAP_MAP = {
+    "cop": "RdYlGn",
+    "capacity": "Blues",
+    "load": "OrRd",
+    "intake": "YlOrRd",
+}
+
+_LABEL_MAP = {
+    "cop": "COP",
+    "capacity": "Capacity (kW)",
+    "load": "Load (kW)",
+    "intake": "Intake Rise (°C)",
+}
+
+
+def _draw_frame(
+    ax: object,
+    fig: object,
+    step: OptimizeResult,
+    layout: ChillerLayout,
+    color_by: str,
+    square_size: float,
+    vmin: float,
+    vmax: float,
+    wind_conditions: WindConditions | None,
+    ambient_temp_c: float | None,
+) -> None:
+    """Draw a single animation frame onto *ax*."""
+    try:
+        import matplotlib.pyplot as plt
+        from matplotlib.patches import Rectangle
+        from matplotlib.colors import Normalize
+        import matplotlib.cm as cm
+    except ImportError:
+        raise ImportError(
+            "matplotlib is required for visualization. "
+            "Install it with: pip install chiller-sim[viz]"
+        )
+
+    ax.clear()
+
+    cmap = cm.get_cmap(_COLORMAP_MAP[color_by])
+    norm = Normalize(vmin=vmin, vmax=vmax)
+    color_values = _get_color_values(step, layout, color_by)
+    half = square_size / 2.0
+
+    for i in range(layout.num_chillers):
+        x, y = layout.positions_m[i]
+        if step.active_mask[i]:
+            color = cmap(norm(color_values[i]))
+            alpha = 1.0
+        else:
+            color = "0.75"
+            alpha = 0.3
+
+        rect = Rectangle(
+            (x - half, y - half), square_size, square_size,
+            facecolor=color, edgecolor="black", linewidth=0.8, alpha=alpha,
+        )
+        ax.add_patch(rect)
+
+    # Axis limits with padding
+    xs = layout.positions_m[:, 0]
+    ys = layout.positions_m[:, 1]
+    pad = square_size * 2
+    ax.set_xlim(xs.min() - pad, xs.max() + pad)
+    ax.set_ylim(ys.min() - pad, ys.max() + pad)
+    ax.set_aspect("equal")
+    ax.set_xlabel("x (m)")
+    ax.set_ylabel("y (m)")
+    ax.set_title(f"t = {step.time_hours:.1f} h")
+
+    # Wind vane in top-left
+    if wind_conditions is not None:
+        uv = wind_conditions.unit_vector
+        ax_x = xs.min() - pad * 0.5
+        ax_y = ys.max() + pad * 0.5
+        arrow_len = square_size * 1.5
+        ax.annotate(
+            "",
+            xy=(ax_x + uv[0] * arrow_len, ax_y + uv[1] * arrow_len),
+            xytext=(ax_x, ax_y),
+            arrowprops=dict(arrowstyle="->", lw=2, color="steelblue"),
+        )
+        ax.text(
+            ax_x, ax_y + arrow_len * 1.2,
+            f"{wind_conditions.speed_m_per_s:.1f} m/s",
+            fontsize=9, ha="center", color="steelblue", fontweight="bold",
+        )
+
+    # Info text on the right
+    info_lines = [f"Load: {step.load_kw:.0f} kW"]
+    if ambient_temp_c is not None:
+        info_lines.append(f"Ambient: {ambient_temp_c:.1f} °C")
+    info_lines.append(f"Savings: {step.savings_fraction * 100:.1f}%")
+
+    info_text = "\n".join(info_lines)
+    ax.text(
+        1.02, 0.5, info_text,
+        transform=ax.transAxes, fontsize=10,
+        verticalalignment="center", fontfamily="monospace",
+        bbox=dict(boxstyle="round,pad=0.4", facecolor="wheat", alpha=0.8),
+    )
+
+
 def animate_simulation(
     result: SimulationResult,
     layout: ChillerLayout,
