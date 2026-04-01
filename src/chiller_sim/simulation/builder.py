@@ -61,6 +61,24 @@ class SimulatorBuilder:
         )
         return self
 
+    def with_layout(
+        self,
+        positions_m: NDArray[np.float64],
+        ages_years: NDArray[np.float64],
+        base_cop: float,
+        max_cooling_kw: float,
+        alpha: float = 0.7,
+    ) -> SimulatorBuilder:
+        """Set the chiller layout from explicit (x, y) positions."""
+        self._layout = ChillerLayout.from_positions(
+            positions_m=positions_m,
+            ages_years=ages_years,
+            base_cop=base_cop,
+            max_cooling_kw=max_cooling_kw,
+            alpha=alpha,
+        )
+        return self
+
     def with_wind(self, speed_m_per_s: float, angle_deg: float) -> SimulatorBuilder:
         """Set static wind conditions (speed and direction)."""
         self._wind = WindConditions(speed_m_per_s=speed_m_per_s, angle_deg=angle_deg)

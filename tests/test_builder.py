@@ -47,7 +47,7 @@ def test_build_raises_without_grid():
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: 400.0)
     )
-    with pytest.raises(ValueError, match="grid"):
+    with pytest.raises(ValueError, match="layout"):
         builder.build()
 
 
@@ -79,3 +79,56 @@ def test_switching_threshold_defaults_to_zero():
 def test_dispersion_defaults_to_1_2():
     sim = _base_builder().build()
     assert sim._model.dispersion_coeff == 1.2
+
+
+def test_with_layout_builds_successfully():
+    positions = np.array([[0.0, 0.0], [15.0, 0.0], [7.5, 13.0]])
+    ages = np.array([2.0, 5.0, 8.0])
+    sim = (
+        SimulatorBuilder()
+        .with_layout(
+            positions_m=positions,
+            ages_years=ages,
+            base_cop=5.0,
+            max_cooling_kw=500.0,
+        )
+        .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
+        .with_ambient_temp(temp_k=298.15)
+        .with_load_fn(lambda t: 400.0)
+        .build()
+    )
+    assert sim is not None
+    assert sim._layout.num_chillers == 3
+
+
+def test_with_layout_optimize_triangle():
+    """End-to-end: optimize with 3 chillers in a triangle (non-grid layout)."""
+    positions = np.array([[0.0, 0.0], [20.0, 0.0], [10.0, 17.3]])
+    ages = np.array([0.0, 0.0, 0.0])
+    sim = (
+        SimulatorBuilder()
+        .with_layout(
+            positions_m=positions,
+            ages_years=ages,
+            base_cop=5.0,
+            max_cooling_kw=500.0,
+        )
+        .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
+        .with_ambient_temp(temp_k=298.15)
+        .with_load_fn(lambda t: 300.0)
+        .build()
+    )
+    result = sim.optimize(time_hours=0.0)
+    assert result.active_mask.sum() >= 1
+    assert result.total_work_kw < float("inf")
+
+
+def test_build_raises_without_layout_or_grid():
+    builder = (
+        SimulatorBuilder()
+        .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
+        .with_ambient_temp(temp_k=298.15)
+        .with_load_fn(lambda t: 400.0)
+    )
+    with pytest.raises(ValueError, match="layout"):
+        builder.build()
