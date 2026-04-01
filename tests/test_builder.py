@@ -68,7 +68,7 @@ def test_seed_preserved_on_rebuild():
     sim1 = _base_builder().build()
     sim2 = sim1.with_wind(speed_m_per_s=5.0, angle_deg=45.0).build()
     # Ages should be the same across rebuilds
-    np.testing.assert_array_equal(sim1._grid.ages_years, sim2._grid.ages_years)
+    np.testing.assert_array_equal(sim1._layout.ages_years, sim2._layout.ages_years)
 
 
 def test_switching_threshold_defaults_to_zero():

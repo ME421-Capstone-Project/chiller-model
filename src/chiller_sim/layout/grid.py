@@ -7,7 +7,7 @@ from numpy.typing import NDArray
 
 
 @dataclass(frozen=True)
-class ChillerGrid:
+class ChillerLayout:
     """Immutable description of a chiller array layout and its ageing state."""
 
     positions_m: NDArray[np.float64]  # shape (n_chillers, 2)
@@ -32,7 +32,7 @@ class ChillerGrid:
         alpha: float = 0.7,
         ages_years: NDArray[np.float64] | None = None,
         seed: int | None = None,
-    ) -> ChillerGrid:
+    ) -> ChillerLayout:
         """Build a regular rectangular chiller grid with optional random ages."""
         if max_cooling_kw <= 0:
             raise ValueError(f"max_cooling_kw must be > 0, got {max_cooling_kw}")
@@ -43,16 +43,16 @@ class ChillerGrid:
         positions = np.column_stack([xx.ravel(), yy.ravel()])
 
         n = rows * cols
-        if ages_years is not None:
-            resolved_ages = np.asarray(ages_years, dtype=np.float64)
-            if len(resolved_ages) != rows * cols:
-                raise ValueError(
-                    f"ages_years length {len(resolved_ages)} does not match "
-                    f"grid size {rows * cols} ({rows}×{cols})"
-                )
-        else:
+        if ages_years is None:
             rng = np.random.default_rng(seed)
             resolved_ages = rng.uniform(0.0, 20.0, size=n)
+        else:
+            resolved_ages = np.asarray(ages_years, dtype=np.float64)
+            if len(resolved_ages) != n:
+                raise ValueError(
+                    f"ages_years length {len(resolved_ages)} does not match "
+                    f"grid size {n} ({rows}×{cols})"
+                )
 
         return cls(
             positions_m=positions,

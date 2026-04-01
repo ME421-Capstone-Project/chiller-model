@@ -6,7 +6,9 @@ from chiller_sim import Simulator
 def _base_sim(load_kw: float = 500.0, min_savings_kw: float = 0.0) -> object:
     return (
         Simulator()
-        .with_grid(rows=4, cols=4, spacing_m=10.0, base_cop=5.5, max_cooling_kw=500.0, alpha=0.7, seed=0)
+        .with_grid(
+            rows=4, cols=4, spacing_m=10.0, base_cop=5.5, max_cooling_kw=500.0, alpha=0.7, seed=0
+        )
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: load_kw)
@@ -17,10 +19,11 @@ def _base_sim(load_kw: float = 500.0, min_savings_kw: float = 0.0) -> object:
 
 # --- Optimization correctness ---
 
+
 def test_optimize_uses_fewer_chillers_than_all_on():
     sim = _base_sim()
     result = sim.optimize(time_hours=0.0)
-    assert result.active_mask.sum() < sim._grid.num_chillers
+    assert result.active_mask.sum() < sim._layout.num_chillers
 
 
 def test_optimize_total_work_less_than_baseline():
@@ -52,7 +55,14 @@ def test_downwind_chillers_have_higher_inlet_temp():
     # chiller at x=20 is downwind. Force both on with huge switching threshold.
     sim = (
         Simulator()
-        .with_grid(rows=1, cols=2, spacing_m=20.0, base_cop=5.0, max_cooling_kw=500.0, ages_years=np.zeros(2))
+        .with_grid(
+            rows=1,
+            cols=2,
+            spacing_m=20.0,
+            base_cop=5.0,
+            max_cooling_kw=500.0,
+            ages_years=np.zeros(2),
+        )
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: 200.0)
@@ -68,7 +78,7 @@ def test_switching_threshold_suppresses_marginal_switching():
     # With a high threshold, optimizer should leave all chillers on
     sim = _base_sim(min_savings_kw=1e9)
     result = sim.optimize(time_hours=0.0)
-    assert result.active_mask.sum() == sim._grid.num_chillers
+    assert result.active_mask.sum() == sim._layout.num_chillers
 
 
 def test_startup_clock_persists_across_optimize_calls():
@@ -86,6 +96,7 @@ from chiller_sim import InitialState
 
 # --- Dynamic simulation ---
 
+
 def test_simulate_returns_correct_step_count():
     sim = _base_sim()
     result = sim.simulate(duration_hours=12.0, time_step_hours=1.0)
@@ -95,7 +106,7 @@ def test_simulate_returns_correct_step_count():
 def test_simulate_schedule_shape():
     sim = _base_sim()
     result = sim.simulate(duration_hours=6.0, time_step_hours=1.0)
-    assert result.schedule.shape == (6, sim._grid.num_chillers)
+    assert result.schedule.shape == (6, sim._layout.num_chillers)
 
 
 def test_stream_and_simulate_identical_schedules():
@@ -126,7 +137,14 @@ def test_ramp_state_advances_within_run():
     # After one 1-hour step (past the 0.25h startup window), COP should be unpenalized.
     sim = (
         Simulator()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=500.0, ages_years=np.zeros(4))
+        .with_grid(
+            rows=2,
+            cols=2,
+            spacing_m=10.0,
+            base_cop=5.0,
+            max_cooling_kw=500.0,
+            ages_years=np.zeros(4),
+        )
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: 400.0)
@@ -150,7 +168,14 @@ def test_initial_state_chillers_start_ramped():
     # so the ramp effect is visible in the work output.
     sim = (
         Simulator()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=500.0, ages_years=np.zeros(4))
+        .with_grid(
+            rows=2,
+            cols=2,
+            spacing_m=10.0,
+            base_cop=5.0,
+            max_cooling_kw=500.0,
+            ages_years=np.zeros(4),
+        )
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: 400.0)
@@ -169,6 +194,7 @@ def test_initial_state_chillers_start_ramped():
 
 def test_custom_load_fn_drives_load_at_each_step():
     loads_seen = []
+
     def tracking_load(t: float) -> float:
         loads_seen.append(t)
         return 300.0 + t * 10.0
@@ -189,6 +215,7 @@ def test_custom_load_fn_drives_load_at_each_step():
 
 # --- Physics plugins ---
 
+
 def test_custom_cop_fn_changes_work():
     sim_default = _base_sim()
     r_default = sim_default.optimize(time_hours=0.0)
@@ -196,7 +223,9 @@ def test_custom_cop_fn_changes_work():
     # A worse cop_fn (returns half the COP) should result in more work
     sim_custom = (
         Simulator()
-        .with_grid(rows=4, cols=4, spacing_m=10.0, base_cop=5.5, max_cooling_kw=500.0, alpha=0.7, seed=0)
+        .with_grid(
+            rows=4, cols=4, spacing_m=10.0, base_cop=5.5, max_cooling_kw=500.0, alpha=0.7, seed=0
+        )
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: 500.0)
@@ -216,20 +245,24 @@ def test_custom_degradation_fn_affects_aged_chillers():
     # with 50% degradation each can only do 100 kW (all 4 needed for 400 kW).
     sim_nodeg = (
         Simulator()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=200.0, ages_years=ages)
+        .with_grid(
+            rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=200.0, ages_years=ages
+        )
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: 400.0)
-        .with_degradation_fn(lambda age: 1.0)   # no degradation
+        .with_degradation_fn(lambda age: 1.0)  # no degradation
         .build()
     )
     sim_heavydeg = (
         Simulator()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=200.0, ages_years=ages)
+        .with_grid(
+            rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=200.0, ages_years=ages
+        )
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: 400.0)
-        .with_degradation_fn(lambda age: 0.5)   # 50% degradation always
+        .with_degradation_fn(lambda age: 0.5)  # 50% degradation always
         .build()
     )
     r_nodeg = sim_nodeg.optimize(time_hours=0.0)
@@ -243,11 +276,18 @@ def test_custom_ramp_fn_increases_work_when_starting_from_initial_state():
     # Use initial_state so the first call is NOT the first-call steady-state path.
     sim = (
         Simulator()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=500.0, ages_years=np.zeros(4))
+        .with_grid(
+            rows=2,
+            cols=2,
+            spacing_m=10.0,
+            base_cop=5.0,
+            max_cooling_kw=500.0,
+            ages_years=np.zeros(4),
+        )
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: 400.0)
-        .with_ramp_fn(lambda t: 0.0)   # always zero (clipped to 1e-6 in _evaluate_work)
+        .with_ramp_fn(lambda t: 0.0)  # always zero (clipped to 1e-6 in _evaluate_work)
         .with_switching_threshold(min_savings_kw=1e9)
         .build()
     )
@@ -262,6 +302,7 @@ def test_custom_ramp_fn_increases_work_when_starting_from_initial_state():
 
 def test_custom_ambient_temp_fn_is_called():
     temps_seen = []
+
     def tracking_temp(t: float) -> float:
         temps_seen.append(t)
         return 298.15
@@ -280,6 +321,7 @@ def test_custom_ambient_temp_fn_is_called():
 
 def test_wind_fn_is_called_at_each_step():
     wind_times: list[float] = []
+
     def tracking_wind(t: float) -> tuple[float, float]:
         wind_times.append(t)
         return (3.0, 0.0)

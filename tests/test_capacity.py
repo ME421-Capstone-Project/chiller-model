@@ -5,25 +5,34 @@ Tests for max_cooling_kw capacity model:
 - Startup ramp reduces effective capacity (not COP)
 - COP is unaffected by age
 """
+
 import numpy as np
 import pytest
 
 from chiller_sim import Simulator
-from chiller_sim.layout.grid import ChillerGrid
+from chiller_sim.layout.grid import ChillerLayout
 from chiller_sim.physics.degradation import default_capacity_degradation_fn
 
 
 def test_create_grid_rejects_zero_max_cooling_kw():
     with pytest.raises(ValueError, match="max_cooling_kw"):
-        ChillerGrid.create_grid(
-            rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=0.0,
+        ChillerLayout.create_grid(
+            rows=2,
+            cols=2,
+            spacing_m=10.0,
+            base_cop=5.0,
+            max_cooling_kw=0.0,
         )
 
 
 def test_create_grid_rejects_negative_max_cooling_kw():
     with pytest.raises(ValueError, match="max_cooling_kw"):
-        ChillerGrid.create_grid(
-            rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=-100.0,
+        ChillerLayout.create_grid(
+            rows=2,
+            cols=2,
+            spacing_m=10.0,
+            base_cop=5.0,
+            max_cooling_kw=-100.0,
         )
 
 
@@ -33,8 +42,14 @@ def test_capacity_gate_forces_multiple_chillers():
     # 4 chillers each capped at 200 kW; load = 350 kW → at least 2 required
     sim = (
         Simulator()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=200.0,
-                   ages_years=np.zeros(4))
+        .with_grid(
+            rows=2,
+            cols=2,
+            spacing_m=10.0,
+            base_cop=5.0,
+            max_cooling_kw=200.0,
+            ages_years=np.zeros(4),
+        )
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: 350.0)
@@ -53,8 +68,9 @@ def test_aged_chillers_require_more_active():
 
     sim_new = (
         Simulator()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=250.0,
-                   ages_years=ages_new)
+        .with_grid(
+            rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=250.0, ages_years=ages_new
+        )
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: load_kw)
@@ -62,8 +78,9 @@ def test_aged_chillers_require_more_active():
     )
     sim_old = (
         Simulator()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=250.0,
-                   ages_years=ages_old)
+        .with_grid(
+            rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=250.0, ages_years=ages_old
+        )
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: load_kw)
@@ -82,8 +99,14 @@ def test_ramp_reduces_effective_capacity():
     # 4 chillers at 200 kW each; with ramp=0 total cap=0; load=350 → infeasible
     sim = (
         Simulator()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=200.0,
-                   ages_years=np.zeros(4))
+        .with_grid(
+            rows=2,
+            cols=2,
+            spacing_m=10.0,
+            base_cop=5.0,
+            max_cooling_kw=200.0,
+            ages_years=np.zeros(4),
+        )
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: 350.0)
@@ -114,8 +137,9 @@ def test_cop_unaffected_by_age():
     def _sim(ages):
         return (
             Simulator()
-            .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=1000.0,
-                       ages_years=ages)
+            .with_grid(
+                rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=1000.0, ages_years=ages
+            )
             .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
             .with_ambient_temp(temp_k=298.15)
             .with_load_fn(lambda t: 100.0)
@@ -139,8 +163,9 @@ def test_custom_degradation_fn_affects_aged_chillers():
 
     sim_nodeg = (
         Simulator()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=250.0,
-                   ages_years=ages)
+        .with_grid(
+            rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=250.0, ages_years=ages
+        )
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: load_kw)
@@ -149,8 +174,9 @@ def test_custom_degradation_fn_affects_aged_chillers():
     )
     sim_heavydeg = (
         Simulator()
-        .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=250.0,
-                   ages_years=ages)
+        .with_grid(
+            rows=2, cols=2, spacing_m=10.0, base_cop=5.0, max_cooling_kw=250.0, ages_years=ages
+        )
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: load_kw)

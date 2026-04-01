@@ -16,8 +16,9 @@ load_kw = 800.0
 # -- New fleet --
 sim_new = (
     Simulator()
-    .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=4.0,
-               max_cooling_kw=500.0, ages_years=np.zeros(4))
+    .with_grid(
+        rows=2, cols=2, spacing_m=10.0, base_cop=4.0, max_cooling_kw=500.0, ages_years=np.zeros(4)
+    )
     .with_wind(speed_m_per_s=5.0, angle_deg=0.0)
     .with_ambient_temp(temp_k=298.15)
     .with_load_fn(lambda t: load_kw)
@@ -27,8 +28,14 @@ sim_new = (
 # -- Aged fleet (20 years) --
 sim_aged = (
     Simulator()
-    .with_grid(rows=2, cols=2, spacing_m=10.0, base_cop=4.0,
-               max_cooling_kw=500.0, ages_years=np.full(4, 20.0))
+    .with_grid(
+        rows=2,
+        cols=2,
+        spacing_m=10.0,
+        base_cop=4.0,
+        max_cooling_kw=500.0,
+        ages_years=np.full(4, 20.0),
+    )
     .with_wind(speed_m_per_s=5.0, angle_deg=0.0)
     .with_ambient_temp(temp_k=298.15)
     .with_load_fn(lambda t: load_kw)
@@ -48,8 +55,7 @@ groups = ["New fleet", "Aged fleet"]
 x = np.arange(len(groups))
 
 # Left: active count
-ax1.bar(x, [n_active_new, n_active_aged], color=[PRIMARY, ACCENT],
-        width=0.5, edgecolor="white")
+ax1.bar(x, [n_active_new, n_active_aged], color=[PRIMARY, ACCENT], width=0.5, edgecolor="white")
 ax1.set_xticks(x)
 ax1.set_xticklabels(groups)
 ax1.set_ylabel("Active chillers")
@@ -57,8 +63,13 @@ ax1.set_title("Active Chillers")
 ax1.set_ylim(0, 5)
 
 # Right: total work
-ax2.bar(x, [r_new.total_work_kw, r_aged.total_work_kw], color=[PRIMARY, ACCENT],
-        width=0.5, edgecolor="white")
+ax2.bar(
+    x,
+    [r_new.total_work_kw, r_aged.total_work_kw],
+    color=[PRIMARY, ACCENT],
+    width=0.5,
+    edgecolor="white",
+)
 ax2.set_xticks(x)
 ax2.set_xticklabels(groups)
 ax2.set_ylabel("Total work (kW)")

@@ -78,7 +78,7 @@ def test_default_ramp_saturates_above_startup_time():
 
 def test_default_ramp_steady_state_at_inf():
     ramp = default_ramp_fn()
-    assert ramp(float('inf')) == 1.0
+    assert ramp(float("inf")) == 1.0
 
 
 import numpy as np
@@ -110,8 +110,8 @@ def test_upwind_chiller_has_no_effect_on_downwind():
     positions = np.array([[0.0, 0.0], [20.0, 0.0]])
     model = GaussianPlumeModel(dispersion_coeff=1.2)
     A = model.compute_interaction_matrix(positions, _east_wind())
-    assert A[1, 0] == 0.0   # downwind chiller (1) does not affect upwind (0)
-    assert A[0, 1] > 0.0    # upwind chiller (0) affects downwind (1)
+    assert A[1, 0] == 0.0  # downwind chiller (1) does not affect upwind (0)
+    assert A[0, 1] > 0.0  # upwind chiller (0) affects downwind (1)
 
 
 def test_thermal_influence_decreases_with_distance():

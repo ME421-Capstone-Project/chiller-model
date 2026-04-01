@@ -9,7 +9,7 @@ def _make_result(time_hours: float = 0.0, n: int = 4) -> OptimizeResult:
         active_mask=np.array([True, True, False, False]),
         total_work_kw=100.0,
         baseline_work_kw=120.0,
-        savings_fraction=1/6,
+        savings_fraction=1 / 6,
         cop_array=np.array([4.0, 3.5, 0.0, 0.0]),
         temp_rise_array=np.array([0.0, 0.5, 0.0, 0.0]),
     )
@@ -21,7 +21,7 @@ def test_optimize_result_stores_fields():
     assert r.load_kw == 500.0
     assert r.total_work_kw == 100.0
     assert r.baseline_work_kw == 120.0
-    assert abs(r.savings_fraction - 1/6) < 1e-9
+    assert abs(r.savings_fraction - 1 / 6) < 1e-9
     assert r.active_mask.dtype == bool
     assert len(r.cop_array) == 4
 
@@ -32,7 +32,7 @@ def test_simulation_result_schedule_property():
     schedule = result.schedule
     assert schedule.shape == (3, 4)
     assert schedule.dtype == bool
-    assert np.all(schedule[:, 0])   # chiller 0 always on
+    assert np.all(schedule[:, 0])  # chiller 0 always on
     assert not np.any(schedule[:, 2])  # chiller 2 always off
 
 
@@ -67,12 +67,16 @@ def test_initial_state_stores_fields():
     )
     assert state.active_mask[0] is np.bool_(True)
     assert state.time_since_start_hours[2] == 0.5
-from chiller_sim.layout.grid import ChillerGrid
+
+
+from chiller_sim.layout.grid import ChillerLayout
 from chiller_sim.layout.wind import WindConditions
 
 
 def test_chiller_grid_from_regular_grid():
-    grid = ChillerGrid.create_grid(rows=2, cols=3, spacing_m=10.0, base_cop=5.0, max_cooling_kw=500.0, alpha=0.7)
+    grid = ChillerLayout.create_grid(
+        rows=2, cols=3, spacing_m=10.0, base_cop=5.0, max_cooling_kw=500.0, alpha=0.7
+    )
     assert grid.positions_m.shape == (6, 2)
     assert grid.base_cop == 5.0
     assert grid.alpha == 0.7
@@ -80,19 +84,27 @@ def test_chiller_grid_from_regular_grid():
 
 
 def test_chiller_grid_seed_reproducible():
-    g1 = ChillerGrid.create_grid(rows=2, cols=2, spacing_m=5.0, base_cop=4.0, max_cooling_kw=500.0, seed=42)
-    g2 = ChillerGrid.create_grid(rows=2, cols=2, spacing_m=5.0, base_cop=4.0, max_cooling_kw=500.0, seed=42)
+    g1 = ChillerLayout.create_grid(
+        rows=2, cols=2, spacing_m=5.0, base_cop=4.0, max_cooling_kw=500.0, seed=42
+    )
+    g2 = ChillerLayout.create_grid(
+        rows=2, cols=2, spacing_m=5.0, base_cop=4.0, max_cooling_kw=500.0, seed=42
+    )
     np.testing.assert_array_equal(g1.ages_years, g2.ages_years)
 
 
 def test_chiller_grid_explicit_ages():
     ages = np.array([1.0, 2.0, 3.0, 4.0])
-    grid = ChillerGrid.create_grid(rows=2, cols=2, spacing_m=5.0, base_cop=4.0, max_cooling_kw=500.0, ages_years=ages)
+    grid = ChillerLayout.create_grid(
+        rows=2, cols=2, spacing_m=5.0, base_cop=4.0, max_cooling_kw=500.0, ages_years=ages
+    )
     np.testing.assert_array_equal(grid.ages_years, ages)
 
 
 def test_chiller_grid_num_chillers():
-    grid = ChillerGrid.create_grid(rows=3, cols=4, spacing_m=10.0, base_cop=4.0, max_cooling_kw=500.0)
+    grid = ChillerLayout.create_grid(
+        rows=3, cols=4, spacing_m=10.0, base_cop=4.0, max_cooling_kw=500.0
+    )
     assert grid.num_chillers == 12
 
 

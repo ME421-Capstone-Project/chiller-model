@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numpy.typing import NDArray
 
-from chiller_sim.layout.grid import ChillerGrid
+from chiller_sim.layout.grid import ChillerLayout
 from chiller_sim.layout.wind import WindConditions, WindFn
 from chiller_sim.physics.ambient_temp import AmbientTempFn
 from chiller_sim.physics.cop import CopFn
@@ -26,7 +26,7 @@ class Simulator:
     def __init__(
         self,
         builder: SimulatorBuilder,
-        grid: ChillerGrid,
+        layout: ChillerLayout,
         initial_wind: WindConditions,
         model: GaussianPlumeModel,
         load_fn: LoadFn,
@@ -40,7 +40,7 @@ class Simulator:
     ) -> None:
         """Initialise the simulator and precompute the interaction matrix."""
         self._builder = builder
-        self._grid = grid
+        self._layout = layout
         self._model = model
         self._load_fn = load_fn
         self._cop_fn = cop_fn
@@ -53,12 +53,14 @@ class Simulator:
 
         # Precompute interaction matrix for initial wind
         self._current_wind = initial_wind
-        self._interaction_matrix = model.compute_interaction_matrix(grid.positions_m, initial_wind)
+        self._interaction_matrix = model.compute_interaction_matrix(
+            layout.positions_m, initial_wind
+        )
 
         # Optimizer state — reset at start of each stream()/simulate() call
         self._is_first_call = True
-        self._active_mask: NDArray[np.bool_] = np.zeros(grid.num_chillers, dtype=bool)
-        self._time_since_start: NDArray[np.float64] = np.zeros(grid.num_chillers)
+        self._active_mask: NDArray[np.bool_] = np.zeros(layout.num_chillers, dtype=bool)
+        self._time_since_start: NDArray[np.float64] = np.zeros(layout.num_chillers)
         self._last_optimize_time_hours: float | None = None
 
     # Builder re-entry: allow sim.with_wind(...).build()
@@ -94,7 +96,7 @@ class Simulator:
         if new_wind != self._current_wind:
             self._current_wind = new_wind
             self._interaction_matrix = self._model.compute_interaction_matrix(
-                self._grid.positions_m, new_wind
+                self._layout.positions_m, new_wind
             )
 
     def _evaluate_work(
@@ -117,12 +119,14 @@ class Simulator:
             if use_steady_state_ramp
             else np.array([self._ramp_fn(t) for t in time_since_start])
         )
-        effective_caps = np.array([
-            self._grid.max_cooling_kw
-            * self._degradation_fn(self._grid.ages_years[i])
-            * ramp_factors[i]
-            for i in range(n)
-        ])
+        effective_caps = np.array(
+            [
+                self._layout.max_cooling_kw
+                * self._degradation_fn(self._layout.ages_years[i])
+                * ramp_factors[i]
+                for i in range(n)
+            ]
+        )
         if load_kw > effective_caps[active_mask].sum():
             return float("inf"), np.zeros(n), np.zeros(n)
 
@@ -133,10 +137,7 @@ class Simulator:
         temp_rise = active_mask.astype(np.float64) @ self._interaction_matrix
 
         cop_array = np.array(
-            [
-                self._cop_fn(self._grid.base_cop, temp_rise[i], ambient_temp_k)
-                for i in range(n)
-            ]
+            [self._cop_fn(self._layout.base_cop, temp_rise[i], ambient_temp_k) for i in range(n)]
         )
         cop_array = np.maximum(cop_array, 1e-6)
         cop_array[~active_mask] = 0.0
@@ -149,7 +150,7 @@ class Simulator:
         load_kw: float,
         ambient_temp_k: float,
     ) -> tuple[NDArray[np.bool_], NDArray[np.float64]]:
-        n = self._grid.num_chillers
+        n = self._layout.num_chillers
 
         # On the first call, start all-on at steady-state ramp throughout the
         # entire greedy loop — ensures custom ramp_fn values do not affect
@@ -232,7 +233,7 @@ class Simulator:
         resolved_load = load_kw if load_kw is not None else self._load_fn(time_hours)
 
         # Baseline: all chillers on at steady-state ramp
-        n = self._grid.num_chillers
+        n = self._layout.num_chillers
         all_on = np.ones(n, dtype=bool)
         steady_times = np.full(n, np.inf)
         baseline_work, _, _ = self._evaluate_work(
@@ -252,7 +253,10 @@ class Simulator:
             eval_times[newly_activated] = np.inf
 
         total_work, cop_array, temp_rise = self._evaluate_work(
-            active_mask, eval_times, resolved_load, ambient_temp_k,
+            active_mask,
+            eval_times,
+            resolved_load,
+            ambient_temp_k,
             use_steady_state_ramp=was_first_call,
         )
 
@@ -278,7 +282,7 @@ class Simulator:
 
     def _reset_state(self, initial_state: InitialState | None) -> None:
         """Reset internal optimizer state at start of stream()/simulate()."""
-        n = self._grid.num_chillers
+        n = self._layout.num_chillers
         if initial_state is not None:
             self._active_mask = initial_state.active_mask.copy()
             self._time_since_start = initial_state.time_since_start_hours.copy()

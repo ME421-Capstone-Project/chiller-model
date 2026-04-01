@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
-from chiller_sim.layout.grid import ChillerGrid
+from chiller_sim.layout.grid import ChillerLayout
 from chiller_sim.layout.wind import WindConditions
 from chiller_sim.physics.gaussian_plume import GaussianPlumeModel
 
@@ -14,8 +14,12 @@ PRIMARY = "#1a5f7a"
 SPINE_COLOR = "#cccccc"
 
 # -- Build a 1x4 row and compute the interaction matrix --
-grid = ChillerGrid.create_grid(
-    rows=1, cols=4, spacing_m=10.0, base_cop=4.0, max_cooling_kw=500.0,
+grid = ChillerLayout.create_grid(
+    rows=1,
+    cols=4,
+    spacing_m=10.0,
+    base_cop=4.0,
+    max_cooling_kw=500.0,
 )
 wind = WindConditions(speed_m_per_s=5.0, angle_deg=0.0)
 model = GaussianPlumeModel(dispersion_coeff=1.2)
@@ -31,8 +35,7 @@ for i in range(matrix.shape[0]):
     for j in range(matrix.shape[1]):
         val = matrix[i, j]
         text_color = "white" if val > matrix.max() * 0.6 else "#333333"
-        ax.text(j, i, f"{val:.3f}", ha="center", va="center",
-                fontsize=10, color=text_color)
+        ax.text(j, i, f"{val:.3f}", ha="center", va="center", fontsize=10, color=text_color)
 
 ax.set_xticks(range(4))
 ax.set_yticks(range(4))

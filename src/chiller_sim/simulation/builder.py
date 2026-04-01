@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numpy.typing import NDArray
 
-from chiller_sim.layout.grid import ChillerGrid
+from chiller_sim.layout.grid import ChillerLayout
 from chiller_sim.layout.wind import WindConditions, WindFn
 from chiller_sim.physics.ambient_temp import AmbientTempFn
 from chiller_sim.physics.cop import CopFn, default_cop_fn
@@ -23,7 +23,7 @@ class SimulatorBuilder:
 
     def __init__(self) -> None:
         """Initialise builder with all fields unset and sensible numeric defaults."""
-        self._grid: ChillerGrid | None = None
+        self._layout: ChillerLayout | None = None
         self._grid_seed: int | None = None
         self._wind: WindConditions | None = None
         self._wind_fn: WindFn | None = None
@@ -49,7 +49,7 @@ class SimulatorBuilder:
     ) -> SimulatorBuilder:
         """Set the chiller grid layout."""
         self._grid_seed = seed
-        self._grid = ChillerGrid.create_grid(
+        self._layout = ChillerLayout.create_grid(
             rows=rows,
             cols=cols,
             spacing_m=spacing_m,
@@ -119,8 +119,10 @@ class SimulatorBuilder:
         """Validate configuration and construct the Simulator."""
         from chiller_sim.simulation.simulator import Simulator
 
-        if self._grid is None:
-            raise ValueError("grid is required — call .with_grid() before .build()")
+        if self._layout is None:
+            raise ValueError(
+                "layout is required — call .with_grid() or .with_layout() before .build()"
+            )
         if self._load_fn is None:
             raise ValueError("load_fn is required — call .with_load_fn() before .build()")
         if self._ambient_temp_k is None and self._ambient_temp_fn is None:
@@ -130,7 +132,7 @@ class SimulatorBuilder:
             )
 
         # Resolve defaults
-        cop_fn = self._cop_fn if self._cop_fn is not None else default_cop_fn(self._grid.alpha)
+        cop_fn = self._cop_fn if self._cop_fn is not None else default_cop_fn(self._layout.alpha)
         deg_fn = (
             self._degradation_fn
             if self._degradation_fn is not None
@@ -149,7 +151,7 @@ class SimulatorBuilder:
 
         return Simulator(
             builder=self,
-            grid=self._grid,
+            layout=self._layout,
             initial_wind=initial_wind,
             model=model,
             load_fn=self._load_fn,
