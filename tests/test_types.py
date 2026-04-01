@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from chiller_sim.simulation.results import OptimizeResult, SimulationResult, InitialState
 
 
@@ -126,3 +127,60 @@ def test_wind_conditions_to_unit_vector():
     uv_n = wind_n.unit_vector
     assert abs(uv_n[0]) < 1e-9
     assert abs(uv_n[1] - 1.0) < 1e-9
+
+
+def test_chiller_layout_from_positions():
+    positions = np.array([[0.0, 0.0], [10.0, 5.0], [25.0, 15.0]])
+    ages = np.array([1.0, 5.0, 10.0])
+    layout = ChillerLayout.from_positions(
+        positions_m=positions,
+        ages_years=ages,
+        base_cop=5.0,
+        max_cooling_kw=500.0,
+    )
+    assert layout.positions_m.shape == (3, 2)
+    assert layout.num_chillers == 3
+    assert layout.base_cop == 5.0
+    assert layout.alpha == 0.7  # default
+    assert layout.max_cooling_kw == 500.0
+    np.testing.assert_array_equal(layout.ages_years, ages)
+
+
+def test_from_positions_rejects_wrong_shape_1d():
+    with pytest.raises(ValueError, match="positions_m"):
+        ChillerLayout.from_positions(
+            positions_m=np.array([1.0, 2.0, 3.0]),
+            ages_years=np.array([1.0]),
+            base_cop=5.0,
+            max_cooling_kw=500.0,
+        )
+
+
+def test_from_positions_rejects_wrong_shape_3col():
+    with pytest.raises(ValueError, match="positions_m"):
+        ChillerLayout.from_positions(
+            positions_m=np.array([[0.0, 0.0, 0.0]]),
+            ages_years=np.array([1.0]),
+            base_cop=5.0,
+            max_cooling_kw=500.0,
+        )
+
+
+def test_from_positions_rejects_mismatched_ages():
+    with pytest.raises(ValueError, match="ages_years"):
+        ChillerLayout.from_positions(
+            positions_m=np.array([[0.0, 0.0], [10.0, 5.0]]),
+            ages_years=np.array([1.0, 2.0, 3.0]),  # 3 ages for 2 positions
+            base_cop=5.0,
+            max_cooling_kw=500.0,
+        )
+
+
+def test_from_positions_rejects_zero_max_cooling():
+    with pytest.raises(ValueError, match="max_cooling_kw"):
+        ChillerLayout.from_positions(
+            positions_m=np.array([[0.0, 0.0]]),
+            ages_years=np.array([1.0]),
+            base_cop=5.0,
+            max_cooling_kw=0.0,
+        )

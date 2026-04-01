@@ -22,6 +22,55 @@ class ChillerLayout:
         return len(self.positions_m)
 
     @classmethod
+    def from_positions(
+        cls,
+        positions_m: NDArray[np.float64],
+        ages_years: NDArray[np.float64],
+        base_cop: float,
+        max_cooling_kw: float,
+        alpha: float = 0.7,
+    ) -> ChillerLayout:
+        """Build a layout from explicit (x, y) positions.
+
+        Parameters
+        ----------
+        positions_m : ndarray, shape (n, 2)
+            Each row is an (x, y) coordinate in metres.
+        ages_years : ndarray, shape (n,)
+            Age of each chiller in years.
+        base_cop : float
+            Nameplate COP for a brand-new chiller.
+        max_cooling_kw : float
+            Nameplate cooling capacity in kW (must be > 0).
+        alpha : float, optional
+            Age-degradation exponent, by default 0.7.
+
+        Returns
+        -------
+        ChillerLayout
+        """
+        positions_m = np.asarray(positions_m, dtype=np.float64)
+        ages_years = np.asarray(ages_years, dtype=np.float64)
+
+        if positions_m.ndim != 2 or positions_m.shape[1] != 2:
+            raise ValueError(f"positions_m must have shape (n, 2), got {positions_m.shape}")
+        if ages_years.shape[0] != positions_m.shape[0]:
+            raise ValueError(
+                f"ages_years length {len(ages_years)} does not match "
+                f"{positions_m.shape[0]} positions"
+            )
+        if max_cooling_kw <= 0:
+            raise ValueError(f"max_cooling_kw must be > 0, got {max_cooling_kw}")
+
+        return cls(
+            positions_m=positions_m,
+            base_cop=base_cop,
+            alpha=alpha,
+            ages_years=ages_years,
+            max_cooling_kw=max_cooling_kw,
+        )
+
+    @classmethod
     def create_grid(
         cls,
         rows: int,
@@ -34,9 +83,6 @@ class ChillerLayout:
         seed: int | None = None,
     ) -> ChillerLayout:
         """Build a regular rectangular chiller grid with optional random ages."""
-        if max_cooling_kw <= 0:
-            raise ValueError(f"max_cooling_kw must be > 0, got {max_cooling_kw}")
-
         xs = np.arange(cols) * spacing_m
         ys = np.arange(rows) * spacing_m
         xx, yy = np.meshgrid(xs, ys)
@@ -54,10 +100,10 @@ class ChillerLayout:
                     f"grid size {n} ({rows}×{cols})"
                 )
 
-        return cls(
+        return cls.from_positions(
             positions_m=positions,
-            base_cop=base_cop,
-            alpha=alpha,
             ages_years=resolved_ages,
+            base_cop=base_cop,
             max_cooling_kw=max_cooling_kw,
+            alpha=alpha,
         )
