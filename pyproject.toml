@@ -41,6 +41,9 @@ docs = [
     "sphinx-rtd-theme>=2.0.0",
     "myst-parser>=2.0.0",
 ]
+viz = [
+    "matplotlib>=3.7.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/example/chiller-model"
