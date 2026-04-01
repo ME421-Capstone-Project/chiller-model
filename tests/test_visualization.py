@@ -1,3 +1,6 @@
+import tempfile
+from pathlib import Path
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -7,6 +10,7 @@ import pytest
 from chiller_sim.layout.grid import ChillerLayout
 from chiller_sim.layout.wind import WindConditions
 from chiller_sim.simulation.results import OptimizeResult, SimulationResult
+from chiller_sim.visualization import animate_simulation
 from chiller_sim.visualization.animation import (
     _draw_frame,
     _get_color_values,
@@ -168,3 +172,73 @@ def test_draw_frame_with_overlays():
     rects = [p for p in ax.patches if isinstance(p, Rectangle)]
     assert len(rects) == 4
     plt.close(fig)
+
+
+def test_animate_simulation_creates_gif():
+    result = _make_result(n_chillers=4, n_steps=3)
+    layout = _make_layout()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out = Path(tmpdir) / "test.gif"
+        returned = animate_simulation(
+            result, layout, output_path=str(out), fps=2,
+        )
+        assert out.exists()
+        assert out.stat().st_size > 0
+        assert returned == out.resolve()
+
+
+def test_animate_simulation_each_color_by():
+    result = _make_result(n_chillers=4, n_steps=2)
+    layout = _make_layout()
+
+    for cb in ("cop", "capacity", "load", "intake"):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = Path(tmpdir) / f"test_{cb}.gif"
+            animate_simulation(result, layout, color_by=cb, output_path=str(out))
+            assert out.exists()
+
+
+def test_animate_simulation_with_wind_and_ambient():
+    result = _make_result(n_chillers=4, n_steps=3)
+    layout = _make_layout()
+    wc = WindConditions(speed_m_per_s=3.0, angle_deg=45.0)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out = Path(tmpdir) / "test.gif"
+        animate_simulation(
+            result, layout, wind=wc,
+            ambient_temp=np.array([298.0, 299.0, 300.0]),
+            output_path=str(out),
+        )
+        assert out.exists()
+
+
+def test_animate_simulation_with_wind_fn():
+    result = _make_result(n_chillers=4, n_steps=2)
+    layout = _make_layout()
+
+    def wind_fn(t: float) -> tuple[float, float]:
+        return (3.0, t * 45.0)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out = Path(tmpdir) / "test.gif"
+        animate_simulation(
+            result, layout, wind=wind_fn, output_path=str(out),
+        )
+        assert out.exists()
+
+
+def test_animate_simulation_with_ambient_fn():
+    result = _make_result(n_chillers=4, n_steps=2)
+    layout = _make_layout()
+
+    def temp_fn(t: float) -> float:
+        return 298.0 + t
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out = Path(tmpdir) / "test.gif"
+        animate_simulation(
+            result, layout, ambient_temp=temp_fn, output_path=str(out),
+        )
+        assert out.exists()

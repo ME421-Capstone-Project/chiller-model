@@ -216,4 +216,67 @@ def animate_simulation(
             f"color_by must be one of {_VALID_COLOR_BY}, got {color_by!r}"
         )
 
-    raise NotImplementedError("Animation rendering not yet implemented")
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from matplotlib.animation import FuncAnimation, PillowWriter
+        import matplotlib.cm as cm
+        from matplotlib.colors import Normalize
+    except ImportError:
+        raise ImportError(
+            "matplotlib is required for visualization. "
+            "Install it with: pip install chiller-sim[viz]"
+        )
+
+    # Compute global color range for consistent colorbar across frames
+    all_values = np.array([
+        _get_color_values(step, layout, color_by) for step in result.steps
+    ])
+    vmin = float(np.nanmin(all_values))
+    vmax = float(np.nanmax(all_values))
+    if vmin == vmax:
+        vmax = vmin + 1.0
+
+    # Compute square size from minimum inter-chiller distance (pure NumPy, no scipy)
+    if layout.num_chillers > 1:
+        diff = layout.positions_m[:, np.newaxis, :] - layout.positions_m[np.newaxis, :, :]
+        dist_matrix = np.sqrt((diff ** 2).sum(axis=-1))
+        np.fill_diagonal(dist_matrix, np.inf)
+        square_size = float(dist_matrix.min()) * 0.7
+    else:
+        square_size = 5.0
+
+    fig, ax = plt.subplots(figsize=figsize)
+    fig.subplots_adjust(right=0.78)
+
+    # Add colorbar
+    cmap = cm.get_cmap(_COLORMAP_MAP[color_by])
+    norm = Normalize(vmin=vmin, vmax=vmax)
+    sm = cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax, fraction=0.046, pad=0.15)
+    cbar.set_label(_LABEL_MAP[color_by])
+
+    def update(frame_idx: int) -> None:
+        step = result.steps[frame_idx]
+        wc = _resolve_wind(wind, step.time_hours)
+        temp_c = _resolve_ambient_temp(ambient_temp, step.time_hours, frame_idx)
+        _draw_frame(
+            ax=ax, fig=fig, step=step, layout=layout,
+            color_by=color_by, square_size=square_size,
+            vmin=vmin, vmax=vmax,
+            wind_conditions=wc, ambient_temp_c=temp_c,
+        )
+
+    anim = FuncAnimation(fig, update, frames=len(result.steps), interval=1000 // fps)
+
+    out = Path(output_path)
+    if out.suffix == ".mp4":
+        from matplotlib.animation import FFMpegWriter
+        anim.save(str(out), writer=FFMpegWriter(fps=fps))
+    else:
+        anim.save(str(out), writer=PillowWriter(fps=fps))
+
+    plt.close(fig)
+    return out.resolve()
