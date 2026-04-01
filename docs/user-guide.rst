@@ -10,13 +10,14 @@ Architecture
 
 Three layers, each depending only on the one above it::
 
-   layout (ChillerGrid, WindConditions)
+   layout (ChillerLayout, WindConditions)
        |
    physics (CopFn, DegradationFn, RampFn, GaussianPlumeModel)
        |
    simulation (SimulatorBuilder -> Simulator)
 
-**layout** -- Defines where chillers sit on a rectangular grid and what the
+**layout** -- Defines where chillers sit (on a rectangular grid via
+``with_grid()`` or in arbitrary positions via ``with_layout()``) and what the
 wind looks like at a given moment.
 
 **physics** -- Pluggable functions that model COP degradation, capacity aging,
@@ -32,8 +33,11 @@ SimulatorBuilder Reference
 ``SimulatorBuilder`` (imported as ``Simulator``) is the main entry point.
 Chain configuration methods, then call ``.build()`` to get a ``Simulator``.
 
-Grid
-^^^^
+Grid / Layout
+^^^^^^^^^^^^^
+
+Use ``with_grid()`` for rectangular arrangements or ``with_layout()`` for
+arbitrary chiller positions:
 
 .. code-block:: python
 
@@ -125,7 +129,7 @@ Build
 
    simulator = builder.build()
 
-Raises ``ValueError`` if required fields are missing. Required: grid,
+Raises ``ValueError`` if required fields are missing. Required: grid or layout,
 wind or wind_fn, ambient_temp or ambient_temp_fn, load_fn.
 
 

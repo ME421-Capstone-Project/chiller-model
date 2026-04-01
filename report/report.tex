@@ -327,7 +327,7 @@ The effective system-level COP is defined as $\cop_{\mathrm{eff}} = Q_{\mathrm{t
 % =============================================================================
 
 The package adopts a modular, composition-based architecture organized into three layers: layout, physics, and simulation.
-This design follows the principle of composition over inheritance: the \texttt{Simulator} is constructed via a fluent \texttt{SimulatorBuilder} that composes a \texttt{ChillerGrid}, \texttt{WindConditions}, and pluggable physics functions rather than relying on class inheritance~\cite{ham2015dynamic}.
+This design follows the principle of composition over inheritance: the \texttt{Simulator} is constructed via a fluent \texttt{SimulatorBuilder} that composes a \texttt{ChillerLayout}, \texttt{WindConditions}, and pluggable physics functions rather than relying on class inheritance~\cite{ham2015dynamic}.
 
 % --- TikZ Architecture Diagram ---
 \begin{figure}[htbp]
@@ -356,7 +356,7 @@ This design follows the principle of composition over inheritance: the \texttt{S
         % Layout Layer
         \node[layer, fill=green!8] (lay) at (0, 0.0) {};
         \node[anchor=north west, font=\sffamily\small\bfseries] at ([xshift=5pt, yshift=-5pt] lay.north west) {Layout};
-        \node[block, fill=green!20] (grid) at (-2, -0.1) {ChillerGrid};
+        \node[block, fill=green!20] (grid) at (-2, -0.1) {ChillerLayout};
         \node[block, fill=green!20] (wind) at (3, -0.1) {WindConditions};
 
         % Arrows: Simulation -> Physics
@@ -375,7 +375,7 @@ This design follows the principle of composition over inheritance: the \texttt{S
 \end{figure}
 
 Thermodynamic states are treated as immutable throughout the package.
-The \texttt{ChillerGrid} class is implemented as a frozen dataclass, and result types (\texttt{OptimizeResult}, \texttt{SimulationResult}) use immutable structures.
+The \texttt{ChillerLayout} class is implemented as a frozen dataclass, and result types (\texttt{OptimizeResult}, \texttt{SimulationResult}) use immutable structures.
 Returning a new state object after each thermodynamic process eliminates an entire class of mutation-related bugs and simplifies reasoning about the simulation flow.
 
 Input validation is handled by the \texttt{SimulatorBuilder}, which enforces required fields and physically plausible parameter ranges at build time.

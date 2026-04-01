@@ -66,7 +66,7 @@ print(f"Saved:  {result.savings_fraction:.1%}")
 chiller-model/
 ├── src/chiller_sim/
 │   ├── layout/          # Grid geometry and wind conditions
-│   │   ├── grid.py      # ChillerGrid (frozen dataclass)
+│   │   ├── grid.py      # ChillerLayout (frozen dataclass)
 │   │   └── wind.py      # WindConditions, WindFn protocol
 │   ├── physics/         # Pluggable physics models
 │   │   ├── cop.py       # CopFn protocol + default
@@ -92,14 +92,14 @@ chiller-model/
 Three layers, each depending only on the one above:
 
 ```
-layout (ChillerGrid, WindConditions)
+layout (ChillerLayout, WindConditions)
     |
 physics (CopFn, DegradationFn, RampFn, GaussianPlumeModel)
     |
 simulation (SimulatorBuilder -> Simulator)
 ```
 
-**layout** -- Where chillers sit on a grid and what the wind looks like.
+**layout** -- Where chillers sit (on a grid via `with_grid()` or in arbitrary positions via `with_layout()`) and what the wind looks like.
 
 **physics** -- Pluggable functions for COP degradation, capacity aging, startup ramp, and thermal plume dispersion.
 
