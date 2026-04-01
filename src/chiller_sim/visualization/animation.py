@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Union
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -27,10 +26,7 @@ def _get_color_values(
         return step.temp_rise_array
     elif color_by == "capacity":
         deg_fn = default_capacity_degradation_fn(years_to_80_pct=15.0)
-        return np.array([
-            layout.max_cooling_kw * deg_fn(age)
-            for age in layout.ages_years
-        ])
+        return np.array([layout.max_cooling_kw * deg_fn(age) for age in layout.ages_years])
     elif color_by == "load":
         n_active = step.active_mask.sum()
         per_chiller = step.load_kw / max(n_active, 1)
@@ -41,7 +37,7 @@ def _get_color_values(
 
 
 def _resolve_wind(
-    wind: Union[WindConditions, WindFn, None],
+    wind: WindConditions | WindFn | None,
     time_hours: float,
 ) -> WindConditions | None:
     """Resolve wind to a WindConditions snapshot or None."""
@@ -54,7 +50,7 @@ def _resolve_wind(
 
 
 def _resolve_ambient_temp(
-    ambient_temp: Union[AmbientTempFn, ArrayLike, None],
+    ambient_temp: AmbientTempFn | ArrayLike | None,
     time_hours: float,
     step_index: int,
 ) -> float | None:
@@ -97,18 +93,17 @@ def _draw_frame(
     """Draw a single animation frame onto *ax*."""
     try:
         import matplotlib.pyplot as plt
-        from matplotlib.patches import Rectangle
         from matplotlib.colors import Normalize
-        import matplotlib.cm as cm
-    except ImportError:
+        from matplotlib.patches import Rectangle
+    except ImportError as err:
         raise ImportError(
             "matplotlib is required for visualization. "
             "Install it with: pip install chiller-sim[viz]"
-        )
+        ) from err
 
     ax.clear()
 
-    cmap = cm.get_cmap(_COLORMAP_MAP[color_by])
+    cmap = plt.colormaps[_COLORMAP_MAP[color_by]]
     norm = Normalize(vmin=vmin, vmax=vmax)
     color_values = _get_color_values(step, layout, color_by)
     half = square_size / 2.0
@@ -123,8 +118,13 @@ def _draw_frame(
             alpha = 0.3
 
         rect = Rectangle(
-            (x - half, y - half), square_size, square_size,
-            facecolor=color, edgecolor="black", linewidth=0.8, alpha=alpha,
+            (x - half, y - half),
+            square_size,
+            square_size,
+            facecolor=color,
+            edgecolor="black",
+            linewidth=0.8,
+            alpha=alpha,
         )
         ax.add_patch(rect)
 
@@ -149,12 +149,16 @@ def _draw_frame(
             "",
             xy=(ax_x + uv[0] * arrow_len, ax_y + uv[1] * arrow_len),
             xytext=(ax_x, ax_y),
-            arrowprops=dict(arrowstyle="->", lw=2, color="steelblue"),
+            arrowprops={"arrowstyle": "->", "lw": 2, "color": "steelblue"},
         )
         ax.text(
-            ax_x, ax_y + arrow_len * 1.2,
+            ax_x,
+            ax_y + arrow_len * 1.2,
             f"{wind_conditions.speed_m_per_s:.1f} m/s",
-            fontsize=9, ha="center", color="steelblue", fontweight="bold",
+            fontsize=9,
+            ha="center",
+            color="steelblue",
+            fontweight="bold",
         )
 
     # Info text on the right
@@ -165,22 +169,26 @@ def _draw_frame(
 
     info_text = "\n".join(info_lines)
     ax.text(
-        1.02, 0.5, info_text,
-        transform=ax.transAxes, fontsize=10,
-        verticalalignment="center", fontfamily="monospace",
-        bbox=dict(boxstyle="round,pad=0.4", facecolor="wheat", alpha=0.8),
+        1.02,
+        0.5,
+        info_text,
+        transform=ax.transAxes,
+        fontsize=10,
+        verticalalignment="center",
+        fontfamily="monospace",
+        bbox={"boxstyle": "round,pad=0.4", "facecolor": "wheat", "alpha": 0.8},
     )
 
 
 def animate_simulation(
     result: SimulationResult,
     layout: ChillerLayout,
-    wind: Union[WindConditions, WindFn, None] = None,
+    wind: WindConditions | WindFn | None = None,
     color_by: str = "cop",
     output_path: str = "simulation.gif",
     fps: int = 4,
     figsize: tuple[float, float] = (10, 6),
-    ambient_temp: Union[AmbientTempFn, ArrayLike, None] = None,
+    ambient_temp: AmbientTempFn | ArrayLike | None = None,
 ) -> Path:
     """Render a simulation as an animated GIF or MP4.
 
@@ -212,27 +220,24 @@ def animate_simulation(
         Absolute path to the saved animation file.
     """
     if color_by not in _VALID_COLOR_BY:
-        raise ValueError(
-            f"color_by must be one of {_VALID_COLOR_BY}, got {color_by!r}"
-        )
+        raise ValueError(f"color_by must be one of {_VALID_COLOR_BY}, got {color_by!r}")
 
     try:
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         from matplotlib.animation import FuncAnimation, PillowWriter
-        import matplotlib.cm as cm
+        from matplotlib.cm import ScalarMappable
         from matplotlib.colors import Normalize
-    except ImportError:
+    except ImportError as err:
         raise ImportError(
             "matplotlib is required for visualization. "
             "Install it with: pip install chiller-sim[viz]"
-        )
+        ) from err
 
     # Compute global color range for consistent colorbar across frames
-    all_values = np.array([
-        _get_color_values(step, layout, color_by) for step in result.steps
-    ])
+    all_values = np.array([_get_color_values(step, layout, color_by) for step in result.steps])
     vmin = float(np.nanmin(all_values))
     vmax = float(np.nanmax(all_values))
     if vmin == vmax:
@@ -241,7 +246,7 @@ def animate_simulation(
     # Compute square size from minimum inter-chiller distance (pure NumPy, no scipy)
     if layout.num_chillers > 1:
         diff = layout.positions_m[:, np.newaxis, :] - layout.positions_m[np.newaxis, :, :]
-        dist_matrix = np.sqrt((diff ** 2).sum(axis=-1))
+        dist_matrix = np.sqrt((diff**2).sum(axis=-1))
         np.fill_diagonal(dist_matrix, np.inf)
         square_size = float(dist_matrix.min()) * 0.7
     else:
@@ -251,9 +256,9 @@ def animate_simulation(
     fig.subplots_adjust(right=0.78)
 
     # Add colorbar
-    cmap = cm.get_cmap(_COLORMAP_MAP[color_by])
+    cmap = plt.colormaps[_COLORMAP_MAP[color_by]]
     norm = Normalize(vmin=vmin, vmax=vmax)
-    sm = cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm = ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
     cbar = fig.colorbar(sm, ax=ax, fraction=0.046, pad=0.15)
     cbar.set_label(_LABEL_MAP[color_by])
@@ -263,10 +268,16 @@ def animate_simulation(
         wc = _resolve_wind(wind, step.time_hours)
         temp_c = _resolve_ambient_temp(ambient_temp, step.time_hours, frame_idx)
         _draw_frame(
-            ax=ax, fig=fig, step=step, layout=layout,
-            color_by=color_by, square_size=square_size,
-            vmin=vmin, vmax=vmax,
-            wind_conditions=wc, ambient_temp_c=temp_c,
+            ax=ax,
+            fig=fig,
+            step=step,
+            layout=layout,
+            color_by=color_by,
+            square_size=square_size,
+            vmin=vmin,
+            vmax=vmax,
+            wind_conditions=wc,
+            ambient_temp_c=temp_c,
         )
 
     anim = FuncAnimation(fig, update, frames=len(result.steps), interval=1000 // fps)
@@ -274,6 +285,7 @@ def animate_simulation(
     out = Path(output_path)
     if out.suffix == ".mp4":
         from matplotlib.animation import FFMpegWriter
+
         anim.save(str(out), writer=FFMpegWriter(fps=fps))
     else:
         anim.save(str(out), writer=PillowWriter(fps=fps))

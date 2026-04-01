@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import tempfile
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -41,12 +44,17 @@ def _make_result(n_chillers: int = 4, n_steps: int = 3) -> SimulationResult:
 def _make_layout(n_chillers: int = 4) -> ChillerLayout:
     """Create a 2x2 layout for testing."""
     return ChillerLayout.create_grid(
-        rows=2, cols=2, spacing_m=10.0,
-        base_cop=5.5, max_cooling_kw=500.0, seed=0,
+        rows=2,
+        cols=2,
+        spacing_m=10.0,
+        base_cop=5.5,
+        max_cooling_kw=500.0,
+        seed=0,
     )
 
 
-def test_invalid_color_by_raises():
+def test_invalid_color_by_raises() -> None:
+    """Raise ValueError when color_by is not a valid option."""
     result = _make_result()
     layout = _make_layout()
     from chiller_sim.visualization import animate_simulation
@@ -55,21 +63,24 @@ def test_invalid_color_by_raises():
         animate_simulation(result, layout, color_by="invalid")
 
 
-def test_get_color_values_cop():
+def test_get_color_values_cop() -> None:
+    """Return cop_array when color_by is 'cop'."""
     step = _make_result(n_chillers=4, n_steps=1).steps[0]
     layout = _make_layout()
     values = _get_color_values(step, layout, "cop")
     np.testing.assert_array_equal(values, step.cop_array)
 
 
-def test_get_color_values_intake():
+def test_get_color_values_intake() -> None:
+    """Return temp_rise_array when color_by is 'intake'."""
     step = _make_result(n_chillers=4, n_steps=1).steps[0]
     layout = _make_layout()
     values = _get_color_values(step, layout, "intake")
     np.testing.assert_array_equal(values, step.temp_rise_array)
 
 
-def test_get_color_values_capacity():
+def test_get_color_values_capacity() -> None:
+    """Return degraded capacity values when color_by is 'capacity'."""
     step = _make_result(n_chillers=4, n_steps=1).steps[0]
     layout = _make_layout()
     values = _get_color_values(step, layout, "capacity")
@@ -77,21 +88,25 @@ def test_get_color_values_capacity():
     assert all(v > 0 for v in values)
 
 
-def test_get_color_values_load():
+def test_get_color_values_load() -> None:
+    """Return per-chiller load values when color_by is 'load'."""
     step = _make_result(n_chillers=4, n_steps=1).steps[0]
     layout = _make_layout()
     values = _get_color_values(step, layout, "load")
     assert values.shape == (4,)
 
 
-def test_resolve_wind_static():
+def test_resolve_wind_static() -> None:
+    """Return the same WindConditions when a static instance is passed."""
     wc = WindConditions(speed_m_per_s=3.0, angle_deg=45.0)
     resolved = _resolve_wind(wc, time_hours=1.0)
     assert resolved.speed_m_per_s == 3.0
     assert resolved.angle_deg == 45.0
 
 
-def test_resolve_wind_callable():
+def test_resolve_wind_callable() -> None:
+    """Call the wind function and return a WindConditions snapshot."""
+
     def wind_fn(t: float) -> tuple[float, float]:
         return (t * 2.0, 90.0)
 
@@ -100,11 +115,14 @@ def test_resolve_wind_callable():
     assert resolved.angle_deg == 90.0
 
 
-def test_resolve_wind_none():
+def test_resolve_wind_none() -> None:
+    """Return None when wind is None."""
     assert _resolve_wind(None, time_hours=0.0) is None
 
 
-def test_resolve_ambient_temp_callable():
+def test_resolve_ambient_temp_callable() -> None:
+    """Convert Kelvin from callable to Celsius."""
+
     def temp_fn(t: float) -> float:
         return 300.0  # Kelvin
 
@@ -112,17 +130,20 @@ def test_resolve_ambient_temp_callable():
     assert pytest.approx(temp_c) == 26.85
 
 
-def test_resolve_ambient_temp_array():
+def test_resolve_ambient_temp_array() -> None:
+    """Index array by step_index and convert Kelvin to Celsius."""
     temps_k = np.array([295.0, 300.0, 305.0])
     temp_c = _resolve_ambient_temp(temps_k, time_hours=0.0, step_index=1)
     assert pytest.approx(temp_c) == 26.85
 
 
-def test_resolve_ambient_temp_none():
+def test_resolve_ambient_temp_none() -> None:
+    """Return None when ambient_temp is None."""
     assert _resolve_ambient_temp(None, time_hours=0.0, step_index=0) is None
 
 
-def test_draw_frame_creates_patches():
+def test_draw_frame_creates_patches() -> None:
+    """Draw one Rectangle patch per chiller onto the axes."""
     fig, ax = plt.subplots()
     result = _make_result(n_chillers=4, n_steps=1)
     layout = _make_layout()
@@ -143,12 +164,14 @@ def test_draw_frame_creates_patches():
 
     # Should have 4 Rectangle patches (one per chiller)
     from matplotlib.patches import Rectangle
+
     rects = [p for p in ax.patches if isinstance(p, Rectangle)]
     assert len(rects) == 4
     plt.close(fig)
 
 
-def test_draw_frame_with_overlays():
+def test_draw_frame_with_overlays() -> None:
+    """Draw frame with wind vane and ambient temperature overlays."""
     fig, ax = plt.subplots()
     result = _make_result(n_chillers=4, n_steps=1)
     layout = _make_layout()
@@ -169,26 +192,32 @@ def test_draw_frame_with_overlays():
     )
 
     from matplotlib.patches import Rectangle
+
     rects = [p for p in ax.patches if isinstance(p, Rectangle)]
     assert len(rects) == 4
     plt.close(fig)
 
 
-def test_animate_simulation_creates_gif():
+def test_animate_simulation_creates_gif() -> None:
+    """Save a GIF file and return its resolved path."""
     result = _make_result(n_chillers=4, n_steps=3)
     layout = _make_layout()
 
     with tempfile.TemporaryDirectory() as tmpdir:
         out = Path(tmpdir) / "test.gif"
         returned = animate_simulation(
-            result, layout, output_path=str(out), fps=2,
+            result,
+            layout,
+            output_path=str(out),
+            fps=2,
         )
         assert out.exists()
         assert out.stat().st_size > 0
         assert returned == out.resolve()
 
 
-def test_animate_simulation_each_color_by():
+def test_animate_simulation_each_color_by() -> None:
+    """Produce a valid GIF for each supported color_by mode."""
     result = _make_result(n_chillers=4, n_steps=2)
     layout = _make_layout()
 
@@ -199,7 +228,8 @@ def test_animate_simulation_each_color_by():
             assert out.exists()
 
 
-def test_animate_simulation_with_wind_and_ambient():
+def test_animate_simulation_with_wind_and_ambient() -> None:
+    """Animate with static wind and pre-computed ambient temperature array."""
     result = _make_result(n_chillers=4, n_steps=3)
     layout = _make_layout()
     wc = WindConditions(speed_m_per_s=3.0, angle_deg=45.0)
@@ -207,14 +237,17 @@ def test_animate_simulation_with_wind_and_ambient():
     with tempfile.TemporaryDirectory() as tmpdir:
         out = Path(tmpdir) / "test.gif"
         animate_simulation(
-            result, layout, wind=wc,
+            result,
+            layout,
+            wind=wc,
             ambient_temp=np.array([298.0, 299.0, 300.0]),
             output_path=str(out),
         )
         assert out.exists()
 
 
-def test_animate_simulation_with_wind_fn():
+def test_animate_simulation_with_wind_fn() -> None:
+    """Animate with a time-varying wind function."""
     result = _make_result(n_chillers=4, n_steps=2)
     layout = _make_layout()
 
@@ -224,12 +257,16 @@ def test_animate_simulation_with_wind_fn():
     with tempfile.TemporaryDirectory() as tmpdir:
         out = Path(tmpdir) / "test.gif"
         animate_simulation(
-            result, layout, wind=wind_fn, output_path=str(out),
+            result,
+            layout,
+            wind=wind_fn,
+            output_path=str(out),
         )
         assert out.exists()
 
 
-def test_animate_simulation_with_ambient_fn():
+def test_animate_simulation_with_ambient_fn() -> None:
+    """Animate with a time-varying ambient temperature function."""
     result = _make_result(n_chillers=4, n_steps=2)
     layout = _make_layout()
 
@@ -239,6 +276,9 @@ def test_animate_simulation_with_ambient_fn():
     with tempfile.TemporaryDirectory() as tmpdir:
         out = Path(tmpdir) / "test.gif"
         animate_simulation(
-            result, layout, ambient_temp=temp_fn, output_path=str(out),
+            result,
+            layout,
+            ambient_temp=temp_fn,
+            output_path=str(out),
         )
         assert out.exists()
