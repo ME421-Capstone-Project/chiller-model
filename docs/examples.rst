@@ -154,6 +154,14 @@ with a 1 h time step.
 Three-panel line plot sharing the x-axis (time): top = load kW, middle =
 total work kW, bottom = active chiller count.
 
+.. image:: _static/images/example4_animation.gif
+   :alt: Animated chiller grid coloured by COP over 24 hours
+   :width: 600px
+
+Animated chiller grid coloured by COP. Active chillers are coloured on the
+green–yellow–red scale; inactive chillers are greyed out. The load overlay
+and savings fraction update each hour as the sinusoidal demand rises and falls.
+
 
 Example 5 -- Time-Varying Wind
 -------------------------------
@@ -191,3 +199,11 @@ changes.
 
 Two-panel line plot -- top = wind angle over time, bottom = total work kW
 over time.
+
+.. image:: _static/images/example5_animation.gif
+   :alt: Animated chiller grid coloured by intake temperature rise over 24 hours
+   :width: 600px
+
+Animated chiller grid coloured by intake temperature rise. The wind vane
+rotates as the wind direction sweeps +-60 deg around 90 deg, visually
+showing how chiller-to-chiller thermal interference shifts with wind alignment.
