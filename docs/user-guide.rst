@@ -112,6 +112,29 @@ Set the Gaussian plume dispersion coefficient (default 1.2):
 
    .with_dispersion(coeff=1.5)
 
+The default :class:`~chiller_sim.physics.gaussian_plume.GaussianPlumeModel`
+implements a simplified constant-:math:`\sigma` form of the standard
+ground-level Gaussian plume. For an ordered pair of chillers where :math:`x`
+is the along-wind distance from source *k* to target *m*, :math:`y` is the
+cross-wind distance, :math:`u` is the wind speed, :math:`\sigma` is
+``dispersion_coeff``, and :math:`u_{\min}` is ``u_min_m_per_s``, the per-pair
+thermal influence is:
+
+.. math::
+
+    I_{k \to m} = \begin{cases}
+        0 & u < u_{\min} \\
+        \dfrac{1}{u\,(x + 1)}\,\exp\!\left(-\dfrac{y^{2}}{\sigma\,(x + 1)}\right)
+            & x > 0,\ u \ge u_{\min} \\
+        0 & \text{otherwise}
+    \end{cases}
+
+The :math:`1/u` factor is the dilution term from the full Gaussian plume
+equation: stronger wind sweeps the plume away faster and reduces the heat
+deposited on downwind chillers. ``u_min_m_per_s`` is a *hard cutoff*, not a
+floor — below it the model returns zero interaction at any distance, reflecting
+the assumption that the plume model does not apply in near-calm conditions.
+
 Switching Threshold
 ^^^^^^^^^^^^^^^^^^^
 
@@ -222,6 +245,19 @@ CopFn
        return base_cop / (1.0 + 0.5 * temp_rise_k)
 
 Default: ``default_cop_fn(alpha)`` -- ``base_cop / (1 + alpha * temp_rise_k)``
+
+Equivalently, with :math:`\mathrm{COP}_{\text{base}}` the nameplate COP,
+:math:`\alpha` the thermal sensitivity coefficient, and
+:math:`\Delta T_{\text{rise}}` the inlet temperature rise above ambient:
+
+.. math::
+
+    \mathrm{COP}(\Delta T_{\text{rise}}) =
+        \frac{\mathrm{COP}_{\text{base}}}{1 + \alpha \,\Delta T_{\text{rise}}}
+
+Effective COP falls as the inlet air warms up: chillers downwind of other
+active chillers see elevated :math:`\Delta T_{\text{rise}}` via the plume
+model, which drives their COP (and therefore cooling efficiency) down.
 
 DegradationFn
 ^^^^^^^^^^^^^
