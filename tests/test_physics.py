@@ -138,3 +138,36 @@ def test_no_nan_or_inf_in_matrix():
     A = model.compute_interaction_matrix(positions, _east_wind())
     assert not np.any(np.isnan(A))
     assert not np.any(np.isinf(A))
+
+
+def test_influence_scales_inversely_with_wind_speed():
+    # Doubling wind speed should halve every nonzero interaction entry.
+    positions = np.array([[0.0, 0.0], [10.0, 0.0], [20.0, 5.0]])
+    model = GaussianPlumeModel(dispersion_coeff=1.2)
+    slow = model.compute_interaction_matrix(
+        positions, WindConditions(speed_m_per_s=2.0, angle_deg=0.0)
+    )
+    fast = model.compute_interaction_matrix(
+        positions, WindConditions(speed_m_per_s=4.0, angle_deg=0.0)
+    )
+    mask = slow > 0
+    assert mask.any()
+    np.testing.assert_allclose(fast[mask], 0.5 * slow[mask], rtol=1e-12)
+
+
+def test_below_u_min_returns_zero_matrix():
+    positions = np.array([[0.0, 0.0], [10.0, 0.0], [20.0, 0.0]])
+    model = GaussianPlumeModel(dispersion_coeff=1.2, u_min_m_per_s=0.5)
+    calm = WindConditions(speed_m_per_s=0.25, angle_deg=0.0)
+    A = model.compute_interaction_matrix(positions, calm)
+    assert A.shape == (3, 3)
+    np.testing.assert_array_equal(A, 0.0)
+
+
+def test_at_u_min_boundary_still_has_interactions():
+    # Cutoff is strict `<`, so u == u_min should still produce nonzero entries.
+    positions = np.array([[0.0, 0.0], [10.0, 0.0]])
+    model = GaussianPlumeModel(dispersion_coeff=1.2, u_min_m_per_s=0.5)
+    wind = WindConditions(speed_m_per_s=0.5, angle_deg=0.0)
+    A = model.compute_interaction_matrix(positions, wind)
+    assert A[0, 1] > 0.0
