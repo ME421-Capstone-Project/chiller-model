@@ -10,23 +10,23 @@ from chiller_sim.layout.wind import WindConditions
 
 @dataclass(frozen=True)
 class GaussianPlumeModel:
-    """Gaussian plume model for chiller thermal interaction.
+    r"""Gaussian plume model for chiller thermal interaction.
 
     With σ_y held constant (``dispersion_coeff``), the per-pair influence is a
     simplified constant-σ form of the standard ground-level Gaussian plume:
 
     .. math::
 
-        I_{k \\to m} = \\begin{cases}
-            0 & u < u_{\\min} \\\\
-            \\dfrac{1}{u\\,(x + 1)} \\exp\\!\\left(-\\dfrac{y^2}{\\sigma\\,(x + 1)}\\right)
-                & x > 0,\\ u \\ge u_{\\min} \\\\
-            0 & \\text{otherwise}
-        \\end{cases}
+        I_{k \to m} = \begin{cases}
+            0 & u < u_{\min} \\
+            \dfrac{1}{u\,(x + 1)} \exp\!\left(-\dfrac{y^2}{\sigma\,(x + 1)}\right)
+                & x > 0,\ u \ge u_{\min} \\
+            0 & \text{otherwise}
+        \end{cases}
 
     where :math:`x` is the along-wind distance from chiller *k* to chiller *m*,
     :math:`y` is the cross-wind distance, :math:`u` is ``wind.speed_m_per_s``,
-    :math:`\\sigma` is ``dispersion_coeff``, and :math:`u_{\\min}` is
+    :math:`\sigma` is ``dispersion_coeff``, and :math:`u_{\min}` is
     ``u_min_m_per_s``. The :math:`1/u` factor is the physical dilution term
     from the full Gaussian plume equation.
 
