@@ -128,9 +128,8 @@ def test_default_capacity_degradation_fn_at_threshold():
     assert abs(fn(10.0) - 0.8) < 1e-9
 
 
-def test_cop_unaffected_by_age():
-    """COP should be the same for a brand-new vs 20-year-old chiller
-    (degradation affects capacity only)."""
+def test_cop_degrades_with_age():
+    """COP should be lower for older chillers due to age-based degradation."""
     ages_new = np.zeros(4)
     ages_old = np.full(4, 20.0)
 
@@ -149,10 +148,14 @@ def test_cop_unaffected_by_age():
 
     r_new = _sim(ages_new).optimize(time_hours=0.0)
     r_old = _sim(ages_old).optimize(time_hours=0.0)
-    # Active cops should be equal — age does not enter cop_fn
     active_new = r_new.cop_array[r_new.active_mask]
     active_old = r_old.cop_array[r_old.active_mask]
-    np.testing.assert_allclose(np.sort(active_new), np.sort(active_old), rtol=1e-9)
+    assert np.all(active_new > active_old), "Old chillers should have lower COP"
+    # 20-year-old chiller at 1.2%/yr loss: factor = 1 - 0.012*20 = 0.76
+    expected_ratio = 1.0 - 0.012 * 20.0
+    np.testing.assert_allclose(
+        np.sort(active_old) / np.sort(active_new), expected_ratio, rtol=1e-6
+    )
 
 
 def test_custom_degradation_fn_affects_aged_chillers():

@@ -30,6 +30,7 @@ class SimulatorBuilder:
         self._ambient_temp_k: float | None = None
         self._ambient_temp_fn: AmbientTempFn | None = None
         self._dispersion_coeff: float = 1.2
+        self._heat_rejection_scale: float = 10.0
         self._load_fn: LoadFn | None = None
         self._cop_fn: CopFn | None = None
         self._degradation_fn: DegradationFn | None = None
@@ -103,9 +104,20 @@ class SimulatorBuilder:
         self._ambient_temp_k = None
         return self
 
-    def with_dispersion(self, coeff: float) -> SimulatorBuilder:
-        """Override the Gaussian plume dispersion coefficient."""
+    def with_dispersion(
+        self,
+        coeff: float,
+        heat_rejection_scale: float | None = None,
+    ) -> SimulatorBuilder:
+        """Override the Gaussian plume dispersion coefficient and heat rejection scale."""
         self._dispersion_coeff = coeff
+        if heat_rejection_scale is not None:
+            self._heat_rejection_scale = heat_rejection_scale
+        return self
+
+    def with_heat_rejection_scale(self, scale: float) -> SimulatorBuilder:
+        """Override the heat rejection scale that converts plume influence to Kelvin."""
+        self._heat_rejection_scale = scale
         return self
 
     def with_load_fn(self, fn: LoadFn) -> SimulatorBuilder:
@@ -165,7 +177,10 @@ class SimulatorBuilder:
             )
         initial_wind = self._wind or WindConditions(*self._wind_fn(0.0))
 
-        model = GaussianPlumeModel(dispersion_coeff=self._dispersion_coeff)
+        model = GaussianPlumeModel(
+            dispersion_coeff=self._dispersion_coeff,
+            heat_rejection_scale=self._heat_rejection_scale,
+        )
 
         return Simulator(
             builder=self,

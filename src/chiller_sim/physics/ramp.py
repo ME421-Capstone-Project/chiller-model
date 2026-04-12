@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-_STARTUP_TIME_HOURS = 0.25
+_STARTUP_TIME_HOURS = 2.0
 _INITIAL_RAMP = 0.1
 
 

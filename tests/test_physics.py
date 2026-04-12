@@ -57,22 +57,22 @@ def test_default_ramp_at_zero():
 
 
 def test_default_ramp_at_startup_time():
-    # At startup_time_hours (0.25): factor = 1.0
+    # At startup_time_hours (2.0): factor = 1.0
     ramp = default_ramp_fn()
-    assert ramp(0.25) == 1.0
+    assert ramp(2.0) == 1.0
 
 
 def test_default_ramp_midpoint():
     # At half startup time: factor = initial_ramp + (1 - initial_ramp) * 0.5
     ramp = default_ramp_fn(initial_ramp=0.1)
     expected = 0.1 + 0.9 * 0.5  # 0.55
-    assert abs(ramp(0.125) - expected) < 1e-9
+    assert abs(ramp(1.0) - expected) < 1e-9
 
 
 def test_default_ramp_saturates_above_startup_time():
     # Beyond startup time: stays at 1.0
     ramp = default_ramp_fn()
-    assert ramp(1.0) == 1.0
+    assert ramp(2.5) == 1.0
     assert ramp(100.0) == 1.0
 
 

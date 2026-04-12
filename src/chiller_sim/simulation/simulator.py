@@ -137,7 +137,15 @@ class Simulator:
         temp_rise = active_mask.astype(np.float64) @ self._interaction_matrix
 
         cop_array = np.array(
-            [self._cop_fn(self._layout.base_cop, temp_rise[i], ambient_temp_k) for i in range(n)]
+            [
+                self._cop_fn(
+                    self._layout.base_cop,
+                    temp_rise[i],
+                    ambient_temp_k,
+                    age_years=float(self._layout.ages_years[i]),
+                )
+                for i in range(n)
+            ]
         )
         cop_array = np.maximum(cop_array, 1e-6)
         cop_array[~active_mask] = 0.0

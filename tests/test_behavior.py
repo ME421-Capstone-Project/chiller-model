@@ -229,7 +229,7 @@ def test_custom_cop_fn_changes_work():
         .with_wind(speed_m_per_s=3.0, angle_deg=0.0)
         .with_ambient_temp(temp_k=298.15)
         .with_load_fn(lambda t: 500.0)
-        .with_cop_fn(lambda base, rise, ambient: base / 2.0)
+        .with_cop_fn(lambda base, rise, ambient, age_years=0.0: base / 2.0)
         .build()
     )
     r_custom = sim_custom.optimize(time_hours=0.0)
